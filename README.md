@@ -74,6 +74,47 @@ The web interface is available at `http://<pi-ip>:5000`
 - **Alarms** - Create, edit, enable/disable, and delete alarms
 - **Settings** - Configure weather API, timezone, snooze duration, and time format
 
+## Auto-Start on Boot
+
+Create a systemd service to start PiAlarm automatically and restart it if it crashes.
+
+Create `/etc/systemd/system/pialarm.service`:
+
+```ini
+[Unit]
+Description=PiAlarm Clock
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/PiAlarm
+ExecStart=/usr/bin/python3 -m src.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable pialarm
+sudo systemctl start pialarm
+```
+
+Useful commands:
+
+```bash
+sudo systemctl status pialarm    # Check status
+sudo systemctl stop pialarm      # Stop the service
+sudo systemctl restart pialarm   # Restart the service
+journalctl -u pialarm -f         # View live logs
+```
+
 ## License
 
 MIT
