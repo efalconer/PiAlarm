@@ -18,6 +18,7 @@ class DisplayData:
     time: str
     date: str
     hour: int = 0
+    weekday_name: str = ""
     weather_temp: str | None = None
     weather_condition: str | None = None
     alarm_active: bool = False
@@ -171,6 +172,7 @@ class WaveshareOLED(Display):
         self._font_time = None
         self._font_medium = None
         self._font_small = None
+        self._font_tiny = None
         self._font_alarm = None
         self._font_alarm_small = None
         self._alarm_blink_state = False
@@ -212,6 +214,7 @@ class WaveshareOLED(Display):
                         self._font_time = ImageFont.truetype(str(bold_font), 28)
                         self._font_medium = ImageFont.truetype(str(font_path), 14)
                         self._font_small = ImageFont.truetype(str(font_path), 11)
+                        self._font_tiny = ImageFont.truetype(str(font_path), 9)
                         self._font_alarm = ImageFont.truetype(str(bold_font), 18)
                         self._font_alarm_small = ImageFont.truetype(str(font_path), 14)
                         font_loaded = True
@@ -226,6 +229,7 @@ class WaveshareOLED(Display):
                 self._font_time = ImageFont.load_default()
                 self._font_medium = ImageFont.load_default()
                 self._font_small = ImageFont.load_default()
+                self._font_tiny = ImageFont.load_default()
                 self._font_alarm = ImageFont.load_default()
                 self._font_alarm_small = ImageFont.load_default()
                 logger.warning("Using default font - install fonts for better display")
@@ -717,7 +721,11 @@ class WaveshareOLED(Display):
 
                 # Date - small, short format, right of dog
                 short_date = self._format_short_date(data.date)
-                draw.text((32, 38), short_date, font=self._font_small, fill="white")
+                draw.text((32, 36), short_date, font=self._font_small, fill="white")
+
+                # Day of week - tiny, below date
+                if data.weekday_name:
+                    draw.text((32, 48), data.weekday_name, font=self._font_tiny, fill="white")
 
                 # Weather icon and temp - bottom right
                 if data.weather_temp:

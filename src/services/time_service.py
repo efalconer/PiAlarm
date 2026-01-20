@@ -93,6 +93,7 @@ class TimeService:
     def get_display_data(self) -> dict:
         """Get all time data for display."""
         now = self.now()
+        weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         return {
             "time": self.format_time(now),
             "time_with_seconds": self.format_time_with_seconds(now),
@@ -100,6 +101,7 @@ class TimeService:
             "hour": now.hour,
             "minute": now.minute,
             "weekday": now.weekday(),
+            "weekday_name": weekday_names[now.weekday()],
         }
 
 

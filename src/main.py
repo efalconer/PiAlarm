@@ -151,6 +151,7 @@ class PiAlarm:
             time=time_data["time"],
             date=time_data["date"],
             hour=time_data["hour"],
+            weekday_name=time_data["weekday_name"],
             weather_temp=weather_data["temp"] if weather_data else None,
             weather_condition=weather_data["condition"] if weather_data else None,
             alarm_active=self.alarm_service.is_alarm_active,
