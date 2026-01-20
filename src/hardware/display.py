@@ -17,6 +17,7 @@ class DisplayData:
 
     time: str
     date: str
+    hour: int = 0
     weather_temp: str | None = None
     weather_condition: str | None = None
     alarm_active: bool = False
@@ -328,6 +329,242 @@ class WaveshareOLED(Display):
             draw.ellipse([x + 10, y + 17, x + 12, y + 19], fill="white")
             draw.ellipse([x + 16, y + 15, x + 18, y + 17], fill="white")
 
+    def _get_dog_activity(self, hour: int) -> str:
+        """Get dog activity based on hour of day."""
+        if hour >= 20 or hour < 6:
+            return "sleeping"
+        elif 6 <= hour < 8:
+            return "coffee"
+        elif 8 <= hour < 10:
+            return "walking"
+        elif 10 <= hour < 14:
+            return "school"
+        elif 14 <= hour < 17:
+            return "homework"
+        elif 17 <= hour < 18:
+            return "dinner"
+        else:  # 18 <= hour < 20
+            return "gaming"
+
+    def _draw_dog(self, draw, x: int, y: int, activity: str):
+        """Draw a 20x20 pixel dog based on activity."""
+        # Each dog is defined as a list of (dx, dy) pixel coordinates to fill
+        # Base dog shape (ears, head, body outline)
+
+        if activity == "sleeping":
+            # Sleeping dog - curled up with Zzz
+            pixels = [
+                # Curled body
+                (6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10), (12, 10),
+                (5, 11), (13, 11),
+                (4, 12), (14, 12),
+                (4, 13), (14, 13),
+                (4, 14), (5, 14), (6, 14), (7, 14), (8, 14), (9, 14), (10, 14), (11, 14), (12, 14), (13, 14), (14, 14),
+                # Head tucked in
+                (6, 11), (7, 11), (8, 11),
+                (6, 12), (7, 12),
+                # Ear
+                (5, 9), (6, 9),
+                # Tail curl
+                (13, 12), (14, 11), (15, 10),
+                # Closed eye
+                (7, 11),
+                # Zzz
+                (15, 4), (16, 4), (17, 4), (17, 5), (16, 6), (15, 6), (15, 7), (16, 7), (17, 7),
+            ]
+
+        elif activity == "coffee":
+            # Dog sitting with coffee mug
+            pixels = [
+                # Ears
+                (4, 2), (5, 2), (5, 3), (10, 2), (11, 2), (10, 3),
+                # Head
+                (5, 4), (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+                (4, 5), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5), (11, 5),
+                (4, 6), (5, 6), (10, 6), (11, 6),
+                (5, 7), (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+                # Eyes
+                (6, 5), (9, 5),
+                # Nose
+                (7, 6), (8, 6),
+                # Body
+                (6, 8), (7, 8), (8, 8), (9, 8),
+                (5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (10, 9),
+                (5, 10), (6, 10), (7, 10), (8, 10), (9, 10), (10, 10),
+                # Legs
+                (5, 11), (6, 11), (9, 11), (10, 11),
+                (5, 12), (6, 12), (9, 12), (10, 12),
+                # Coffee mug (held in paw)
+                (12, 8), (13, 8), (14, 8), (15, 8),
+                (12, 9), (15, 9), (16, 9), (17, 9),
+                (12, 10), (15, 10), (17, 10),
+                (12, 11), (13, 11), (14, 11), (15, 11), (16, 11), (17, 11),
+                # Steam
+                (13, 5), (14, 6), (13, 7),
+            ]
+
+        elif activity == "walking":
+            # Dog walking with backpack
+            pixels = [
+                # Ears
+                (3, 3), (4, 3), (4, 4), (9, 3), (10, 3), (9, 4),
+                # Head
+                (4, 5), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5),
+                (3, 6), (4, 6), (5, 6), (6, 6), (7, 6), (8, 6), (9, 6), (10, 6),
+                (3, 7), (4, 7), (9, 7), (10, 7),
+                (4, 8), (5, 8), (6, 8), (7, 8), (8, 8), (9, 8),
+                # Eyes
+                (5, 6), (8, 6),
+                # Nose
+                (6, 7), (7, 7),
+                # Body
+                (5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (10, 9), (11, 9),
+                (5, 10), (6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10),
+                (5, 11), (6, 11), (7, 11), (8, 11), (9, 11), (10, 11), (11, 11),
+                # Backpack
+                (11, 8), (12, 8), (13, 8), (14, 8),
+                (11, 9), (14, 9),
+                (11, 10), (14, 10),
+                (11, 11), (12, 11), (13, 11), (14, 11),
+                # Walking legs (one forward, one back)
+                (4, 12), (5, 12), (10, 12), (11, 12),
+                (3, 13), (4, 13), (11, 13), (12, 13),
+                (3, 14), (12, 14),
+                # Tail up
+                (12, 8), (13, 7), (14, 6),
+            ]
+
+        elif activity == "school":
+            # Dog at desk with book
+            pixels = [
+                # Ears
+                (4, 1), (5, 1), (5, 2), (10, 1), (11, 1), (10, 2),
+                # Head
+                (5, 3), (6, 3), (7, 3), (8, 3), (9, 3), (10, 3),
+                (4, 4), (5, 4), (6, 4), (7, 4), (8, 4), (9, 4), (10, 4), (11, 4),
+                (4, 5), (5, 5), (10, 5), (11, 5),
+                (5, 6), (6, 6), (7, 6), (8, 6), (9, 6), (10, 6),
+                # Eyes (looking down at book)
+                (6, 5), (9, 5),
+                # Nose
+                (7, 5), (8, 5),
+                # Body at desk
+                (5, 7), (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+                (5, 8), (6, 8), (7, 8), (8, 8), (9, 8), (10, 8),
+                # Desk
+                (2, 9), (3, 9), (4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (10, 9), (11, 9), (12, 9), (13, 9),
+                (2, 10), (13, 10),
+                (2, 11), (13, 11),
+                (2, 12), (13, 12),
+                # Book on desk
+                (5, 8), (6, 8), (7, 8), (8, 8), (9, 8), (10, 8),
+                # Paws on desk
+                (4, 8), (11, 8),
+            ]
+
+        elif activity == "homework":
+            # Dog writing with pencil
+            pixels = [
+                # Ears
+                (4, 2), (5, 2), (5, 3), (10, 2), (11, 2), (10, 3),
+                # Head (looking down)
+                (5, 4), (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+                (4, 5), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5), (11, 5),
+                (4, 6), (5, 6), (10, 6), (11, 6),
+                (5, 7), (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+                # Eyes
+                (6, 5), (9, 5),
+                # Nose
+                (7, 6), (8, 6),
+                # Body
+                (6, 8), (7, 8), (8, 8), (9, 8),
+                (5, 9), (6, 9), (7, 9), (8, 9), (9, 9), (10, 9),
+                # Sitting legs
+                (5, 10), (6, 10), (9, 10), (10, 10),
+                (5, 11), (6, 11), (9, 11), (10, 11),
+                # Paper
+                (12, 7), (13, 7), (14, 7), (15, 7), (16, 7),
+                (12, 8), (16, 8),
+                (12, 9), (16, 9),
+                (12, 10), (13, 10), (14, 10), (15, 10), (16, 10),
+                # Pencil in paw
+                (10, 8), (11, 7), (12, 6), (13, 5),
+                # Writing lines on paper
+                (13, 8), (14, 8), (15, 8),
+                (13, 9), (14, 9),
+            ]
+
+        elif activity == "dinner":
+            # Dog eating from bowl
+            pixels = [
+                # Ears (flopped down while eating)
+                (3, 4), (4, 4), (4, 5), (11, 4), (12, 4), (11, 5),
+                # Head (down eating)
+                (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5),
+                (4, 6), (5, 6), (6, 6), (7, 6), (8, 6), (9, 6), (10, 6), (11, 6),
+                (4, 7), (5, 7), (10, 7), (11, 7),
+                (5, 8), (6, 8), (7, 8), (8, 8), (9, 8), (10, 8),
+                # Eyes closed (happy eating)
+                (6, 6), (9, 6),
+                # Nose in bowl
+                (7, 8), (8, 8),
+                # Body
+                (6, 9), (7, 9), (8, 9), (9, 9), (10, 9), (11, 9),
+                (6, 10), (7, 10), (8, 10), (9, 10), (10, 10), (11, 10),
+                # Legs
+                (6, 11), (7, 11), (10, 11), (11, 11),
+                (6, 12), (7, 12), (10, 12), (11, 12),
+                # Tail wagging
+                (12, 9), (13, 8), (14, 9),
+                # Food bowl
+                (4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9),
+                (3, 10), (10, 10),
+                (3, 11), (4, 11), (5, 11), (6, 11), (7, 11), (8, 11), (9, 11), (10, 11),
+                # Food bits
+                (5, 8), (6, 8), (7, 8), (8, 8),
+            ]
+
+        else:  # gaming
+            # Dog with game controller
+            pixels = [
+                # Ears
+                (4, 2), (5, 2), (5, 3), (10, 2), (11, 2), (10, 3),
+                # Head
+                (5, 4), (6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+                (4, 5), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 5), (11, 5),
+                (4, 6), (5, 6), (10, 6), (11, 6),
+                (5, 7), (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+                # Eyes (focused on game)
+                (6, 5), (9, 5),
+                # Nose
+                (7, 6), (8, 6),
+                # Tongue out (excited)
+                (7, 8), (8, 8),
+                # Body
+                (6, 9), (7, 9), (8, 9), (9, 9),
+                (5, 10), (6, 10), (7, 10), (8, 10), (9, 10), (10, 10),
+                # Sitting
+                (5, 11), (6, 11), (9, 11), (10, 11),
+                (5, 12), (6, 12), (9, 12), (10, 12),
+                # Game controller
+                (11, 9), (12, 9), (13, 9), (14, 9), (15, 9),
+                (11, 10), (12, 10), (13, 10), (14, 10), (15, 10),
+                (12, 11), (13, 11), (14, 11),
+                # Controller buttons
+                (12, 9), (14, 9),
+                # Paws holding controller
+                (10, 9), (10, 10),
+                # TV/Screen indication
+                (14, 3), (15, 3), (16, 3), (17, 3), (18, 3),
+                (14, 4), (18, 4),
+                (14, 5), (18, 5),
+                (14, 6), (15, 6), (16, 6), (17, 6), (18, 6),
+            ]
+
+        # Draw all pixels
+        for dx, dy in pixels:
+            draw.point((x + dx, y + dy), fill="white")
+
     def _format_short_date(self, date_str: str) -> str:
         """Convert date to short format (e.g., 'Jan 15')."""
         # Try to parse common date formats
@@ -416,7 +653,7 @@ class WaveshareOLED(Display):
                 draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
                 draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
             else:
-                # Normal mode - time, date, weather
+                # Normal mode - time, date, weather, dog
                 # Time - large, centered, takes up top portion
                 time_text = data.time
                 # Get text bounding box for centering
@@ -426,21 +663,25 @@ class WaveshareOLED(Display):
                 x_pos = (self.WIDTH - text_width) // 2
                 draw.text((x_pos, 2), time_text, font=self._font_time, fill="white")
 
-                # Date - small, short format, bottom left
+                # Dog character - bottom left (20x20)
+                activity = self._get_dog_activity(data.hour)
+                self._draw_dog(draw, 2, 42, activity)
+
+                # Date - small, short format, next to dog
                 short_date = self._format_short_date(data.date)
-                draw.text((2, 50), short_date, font=self._font_small, fill="white")
+                draw.text((24, 52), short_date, font=self._font_small, fill="white")
 
                 # Weather icon and temp - bottom right
                 if data.weather_temp:
                     # Draw weather icon
                     icon_type = self._get_weather_icon_type(data.weather_condition)
-                    icon_x = 68
+                    icon_x = 78
                     icon_size = 18
                     self._draw_weather_icon(draw, icon_x, 44, icon_type, size=icon_size)
 
                     # Temperature next to icon with 10px gap
                     temp_x = icon_x + icon_size + 10
-                    draw.text((temp_x, 50), data.weather_temp, font=self._font_small, fill="white")
+                    draw.text((temp_x, 52), data.weather_temp, font=self._font_small, fill="white")
 
 
 # Global instance
