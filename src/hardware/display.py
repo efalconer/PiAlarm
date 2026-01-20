@@ -125,22 +125,19 @@ class WaveshareOLED(Display):
     WIDTH = 128
     HEIGHT = 64
 
-    def __init__(self, interface: str = "i2c", i2c_address: int = 0x3C,
-                 spi_device: int = 0, spi_port: int = 0,
+    def __init__(self, interface: str = "spi", spi_device: int = 0, spi_port: int = 0,
                  gpio_dc: int = 24, gpio_rst: int = 25):
         """
         Initialize Waveshare OLED display.
 
         Args:
-            interface: "i2c" or "spi"
-            i2c_address: I2C address (default 0x3C)
+            interface: "spi" (default) or "i2c"
             spi_device: SPI device number (default 0)
             spi_port: SPI port number (default 0)
-            gpio_dc: GPIO pin for DC (SPI only)
-            gpio_rst: GPIO pin for reset (SPI only)
+            gpio_dc: GPIO pin for DC
+            gpio_rst: GPIO pin for reset
         """
         self._interface = interface
-        self._i2c_address = i2c_address
         self._spi_device = spi_device
         self._spi_port = spi_port
         self._gpio_dc = gpio_dc
@@ -161,12 +158,12 @@ class WaveshareOLED(Display):
             from luma.oled.device import ssd1309
             from PIL import ImageFont
 
-            # Set up serial interface
-            if self._interface == "i2c":
-                serial = i2c(port=1, address=self._i2c_address)
-            else:
+            # Set up serial interface (SPI is default for Waveshare 2.42")
+            if self._interface == "spi":
                 serial = spi(device=self._spi_device, port=self._spi_port,
                             gpio_DC=self._gpio_dc, gpio_RST=self._gpio_rst)
+            else:
+                serial = i2c(port=1, address=0x3C)
 
             # Create device
             self._device = ssd1309(serial, width=self.WIDTH, height=self.HEIGHT)

@@ -14,8 +14,10 @@ DEFAULT_CONFIG = {
     "time_format_24h": False,
     "web_port": 5000,
     "display_type": "auto",  # "auto", "oled", "console"
-    "display_interface": "i2c",  # "i2c" or "spi"
-    "display_i2c_address": 60,  # 0x3C = 60
+    "display_interface": "spi",  # "i2c" or "spi"
+    "display_spi_device": 0,
+    "display_gpio_dc": 24,
+    "display_gpio_rst": 25,
 }
 
 CONFIG_DIR = Path(__file__).parent.parent
@@ -90,11 +92,19 @@ class Config:
 
     @property
     def display_interface(self) -> str:
-        return self._config.get("display_interface", "i2c")
+        return self._config.get("display_interface", "spi")
 
     @property
-    def display_i2c_address(self) -> int:
-        return self._config.get("display_i2c_address", 60)
+    def display_spi_device(self) -> int:
+        return self._config.get("display_spi_device", 0)
+
+    @property
+    def display_gpio_dc(self) -> int:
+        return self._config.get("display_gpio_dc", 24)
+
+    @property
+    def display_gpio_rst(self) -> int:
+        return self._config.get("display_gpio_rst", 25)
 
     @property
     def display_brightness(self) -> int:

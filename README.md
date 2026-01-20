@@ -33,20 +33,23 @@ Follow the [Adafruit Speaker Bonnet guide](https://learn.adafruit.com/adafruit-s
 
 ### 3. Connect the OLED display
 
-Enable I2C on your Pi:
+Enable SPI on your Pi:
 ```bash
 sudo raspi-config
-# Navigate to: Interface Options → I2C → Enable
+# Navigate to: Interface Options → SPI → Enable
 ```
 
-Wire the Waveshare 2.42" OLED (I2C mode):
+Wire the Waveshare 2.42" OLED:
 
-| OLED Pin | Pi Pin |
-|----------|--------|
-| VCC | 3.3V (Pin 1) |
-| GND | GND (Pin 6) |
-| SDA | GPIO 2 (Pin 3) |
-| SCL | GPIO 3 (Pin 5) |
+| OLED Pin | Pi Pin | Description |
+|----------|--------|-------------|
+| VCC | 3.3V (Pin 1) | Power |
+| GND | GND (Pin 6) | Ground |
+| DIN | GPIO 10 (Pin 19) | SPI MOSI |
+| CLK | GPIO 11 (Pin 23) | SPI SCLK |
+| CS | GPIO 8 (Pin 24) | SPI CE0 |
+| DC | GPIO 24 (Pin 18) | Data/Command |
+| RST | GPIO 25 (Pin 22) | Reset |
 
 ### 4. Wire buttons
 

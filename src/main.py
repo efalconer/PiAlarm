@@ -55,7 +55,9 @@ class PiAlarm:
             try:
                 display = WaveshareOLED(
                     interface=self.config.display_interface,
-                    i2c_address=self.config.display_i2c_address,
+                    spi_device=self.config.display_spi_device,
+                    gpio_dc=self.config.display_gpio_dc,
+                    gpio_rst=self.config.display_gpio_rst,
                 )
                 set_display(display)
                 logger.info("Using Waveshare OLED display")

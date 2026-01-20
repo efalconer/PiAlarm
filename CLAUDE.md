@@ -77,28 +77,34 @@ Buttons use pull-up resistors (connect button between GPIO and GND).
 
 ## Display Configuration
 
-The Waveshare 2.42" OLED uses the SSD1309 controller. Configure in `config.json`:
+The Waveshare 2.42" OLED uses the SSD1309 controller via SPI. Configure in `config.json`:
 
 ```json
 {
   "display_type": "auto",
-  "display_interface": "i2c",
-  "display_i2c_address": 60,
+  "display_interface": "spi",
+  "display_spi_device": 0,
+  "display_gpio_dc": 24,
+  "display_gpio_rst": 25,
   "display_brightness": 100
 }
 ```
 
 - `display_type`: "auto" (detect), "oled", or "console"
-- `display_interface`: "i2c" or "spi"
-- `display_i2c_address`: I2C address (60 = 0x3C, 61 = 0x3D)
+- `display_interface`: "spi" (default) or "i2c"
+- `display_gpio_dc`: GPIO pin for Data/Command
+- `display_gpio_rst`: GPIO pin for Reset
 - `display_brightness`: 0-100
 
-**I2C Wiring:**
-| OLED Pin | Pi Pin |
-|----------|--------|
-| VCC | 3.3V (Pin 1) |
-| GND | GND (Pin 6) |
-| SDA | GPIO 2 (Pin 3) |
-| SCL | GPIO 3 (Pin 5) |
+**SPI Wiring:**
+| OLED Pin | Pi Pin | Description |
+|----------|--------|-------------|
+| VCC | 3.3V (Pin 1) | Power |
+| GND | GND (Pin 6) | Ground |
+| DIN | GPIO 10 (Pin 19) | SPI MOSI |
+| CLK | GPIO 11 (Pin 23) | SPI SCLK |
+| CS | GPIO 8 (Pin 24) | SPI CE0 |
+| DC | GPIO 24 (Pin 18) | Data/Command |
+| RST | GPIO 25 (Pin 22) | Reset |
 
-Enable I2C on Pi: `sudo raspi-config` → Interface Options → I2C
+Enable SPI on Pi: `sudo raspi-config` → Interface Options → SPI
