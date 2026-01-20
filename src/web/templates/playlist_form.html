@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit Playlist' if playlist else 'New Playlist' }} - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>{{ 'Edit Playlist' if playlist else 'New Playlist' }}</h1>
+
+<div class="card">
+    <form method="post">
+        <div class="form-group">
+            <label for="name">Playlist Name</label>
+            <input type="text" id="name" name="name"
+                   value="{{ playlist.name if playlist else '' }}" placeholder="My Playlist" required>
+        </div>
+
+        <div class="form-group">
+            <label>Select Tracks</label>
+            <p style="color: #666; font-size: 12px; margin-bottom: 10px;">
+                Select tracks in the order you want them to play. Hold Ctrl/Cmd to select multiple.
+            </p>
+            {% if sounds %}
+            <select name="tracks" multiple size="10" style="height: auto;">
+                {% for sound in sounds %}
+                <option value="{{ sound }}" {% if playlist and sound in playlist.tracks %}selected{% endif %}>
+                    {{ sound }}
+                </option>
+                {% endfor %}
+            </select>
+            {% else %}
+            <p style="color: #e74c3c;">No music files available. <a href="{{ url_for('music') }}">Upload some first</a>.</p>
+            {% endif %}
+        </div>
+
+        {% if playlist and playlist.tracks %}
+        <div class="form-group">
+            <label>Current Track Order</label>
+            <ol style="margin-left: 20px; color: #888;">
+                {% for track in playlist.tracks %}
+                <li>{{ track }}</li>
+                {% endfor %}
+            </ol>
+        </div>
+        {% endif %}
+
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn" {% if not sounds %}disabled{% endif %}>
+                {{ 'Save Changes' if playlist else 'Create Playlist' }}
+            </button>
+            <a href="{{ url_for('music') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

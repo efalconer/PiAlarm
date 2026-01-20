@@ -50,6 +50,7 @@
             transition: opacity 0.2s;
         }
         .btn:hover { opacity: 0.8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-danger { background: #e74c3c; color: white; }
         .btn-secondary { background: #555; color: white; }
         .btn-success { background: #2ecc71; color: white; }
@@ -162,6 +163,7 @@
         <nav>
             <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a>
             <a href="{{ url_for('list_alarms') }}" class="{% if request.endpoint in ['list_alarms', 'new_alarm', 'edit_alarm'] %}active{% endif %}">Alarms</a>
+            <a href="{{ url_for('music') }}" class="{% if request.endpoint in ['music', 'new_playlist', 'edit_playlist'] %}active{% endif %}">Music</a>
             <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}">Settings</a>
         </nav>
         {% block content %}{% endblock %}

@@ -157,6 +157,7 @@ class PiAlarm:
                 self._check_weather_refresh()
                 self._check_alarms()
                 self._update_display()
+                self.audio_service.check_playlist_advance()
                 time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Interrupted by user")

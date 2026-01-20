@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Music - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>Music</h1>
+
+{% if is_playing %}
+<div class="card" style="background: #1e3a5f;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="color: #4fc3f7; font-size: 12px; text-transform: uppercase;">Now Playing</div>
+            <div style="font-size: 18px; margin-top: 5px;">{{ current_file }}</div>
+            {% if is_playlist_mode %}
+            <div style="color: #888; font-size: 14px;">Track {{ playlist_position[0] }} of {{ playlist_position[1] }}</div>
+            {% endif %}
+        </div>
+        <div style="display: flex; gap: 10px;">
+            {% if is_playlist_mode %}
+            <form action="{{ url_for('previous_track') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-secondary">Prev</button>
+            </form>
+            <form action="{{ url_for('next_track') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-secondary">Next</button>
+            </form>
+            {% endif %}
+            <form action="{{ url_for('stop_music') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-danger">Stop</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Upload Music</h2>
+    <form action="{{ url_for('upload_music') }}" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <input type="file" name="files" accept=".mp3" multiple
+                   style="padding: 10px; background: #0f0f23; border-radius: 6px; width: 100%;">
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">Select one or more MP3 files (max 50MB each)</p>
+        </div>
+        <button type="submit" class="btn">Upload</button>
+    </form>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Playlists</h2>
+        <a href="{{ url_for('new_playlist') }}" class="btn">+ New Playlist</a>
+    </div>
+
+    {% if playlists %}
+    <ul class="alarm-list">
+        {% for playlist in playlists %}
+        <li class="alarm-item">
+            <div>
+                <div class="alarm-time" style="font-size: 18px;">{{ playlist.name }}</div>
+                <div class="alarm-label">{{ playlist.tracks|length }} tracks</div>
+            </div>
+            <div class="alarm-actions">
+                <form action="{{ url_for('play_playlist', playlist_id=playlist.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-success" {% if not playlist.tracks %}disabled{% endif %}>Play</button>
+                </form>
+                <a href="{{ url_for('edit_playlist', playlist_id=playlist.id) }}" class="btn btn-secondary">Edit</a>
+                <form action="{{ url_for('delete_playlist', playlist_id=playlist.id) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this playlist?')">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #888;">No playlists yet. Create one to organize your music!</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Library</h2>
+    {% if sounds %}
+    <ul class="alarm-list">
+        {% for sound in sounds %}
+        <li class="alarm-item">
+            <div>
+                <span {% if current_file == sound %}style="color: #4fc3f7;"{% endif %}>{{ sound }}</span>
+            </div>
+            <div class="alarm-actions">
+                <form action="{{ url_for('play_music', filename=sound) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-secondary">Play</button>
+                </form>
+                <form action="{{ url_for('delete_music', filename=sound) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Delete {{ sound }}?')">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #888;">No music files. Upload some MP3s to get started!</p>
+    {% endif %}
+</div>
+{% endblock %}

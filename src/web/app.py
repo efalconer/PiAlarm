@@ -1,6 +1,8 @@
 """Flask web application for PiAlarm configuration."""
 
 import logging
+import os
+from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 from src.config import get_config, MUSIC_DIR
@@ -8,11 +10,13 @@ from src.services.alarm_service import get_alarm_service, Alarm
 from src.services.audio_service import get_audio_service
 from src.services.weather_service import get_weather_service
 from src.services.time_service import get_time_service
+from src.services.playlist_service import get_playlist_service, Playlist
 from src.hardware.buttons import get_button_handler, Button
 
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
 
 
 @app.route("/")
@@ -106,6 +110,141 @@ def toggle_alarm(alarm_id: int):
     return jsonify({"enabled": new_state})
 
 
+@app.route("/music")
+def music():
+    """Music library and playlists."""
+    audio_service = get_audio_service()
+    playlist_service = get_playlist_service()
+    return render_template(
+        "music.html",
+        sounds=audio_service.get_available_sounds(),
+        playlists=playlist_service.get_all(),
+        is_playing=audio_service.is_playing(),
+        current_file=audio_service.current_file,
+        is_playlist_mode=audio_service.is_playlist_mode,
+        playlist_position=audio_service.playlist_position,
+    )
+
+
+@app.route("/music/upload", methods=["POST"])
+def upload_music():
+    """Upload MP3 files."""
+    if "files" not in request.files:
+        return redirect(url_for("music"))
+
+    MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+
+    files = request.files.getlist("files")
+    for file in files:
+        if file and file.filename and file.filename.lower().endswith(".mp3"):
+            filename = secure_filename(file.filename)
+            file.save(MUSIC_DIR / filename)
+            logger.info(f"Uploaded: {filename}")
+
+    return redirect(url_for("music"))
+
+
+@app.route("/music/<filename>/delete", methods=["POST"])
+def delete_music(filename: str):
+    """Delete an MP3 file."""
+    audio_service = get_audio_service()
+    audio_service.delete_file(filename)
+    return redirect(url_for("music"))
+
+
+@app.route("/music/<filename>/play", methods=["POST"])
+def play_music(filename: str):
+    """Play a single MP3 file."""
+    audio_service = get_audio_service()
+    audio_service.play(filename, loop=False)
+    return redirect(url_for("music"))
+
+
+@app.route("/music/stop", methods=["POST"])
+def stop_music():
+    """Stop playback."""
+    audio_service = get_audio_service()
+    audio_service.stop()
+    return redirect(url_for("music"))
+
+
+@app.route("/music/next", methods=["POST"])
+def next_track():
+    """Skip to next track."""
+    audio_service = get_audio_service()
+    audio_service.next_track()
+    return redirect(url_for("music"))
+
+
+@app.route("/music/previous", methods=["POST"])
+def previous_track():
+    """Go to previous track."""
+    audio_service = get_audio_service()
+    audio_service.previous_track()
+    return redirect(url_for("music"))
+
+
+@app.route("/playlists/new", methods=["GET", "POST"])
+def new_playlist():
+    """Create a new playlist."""
+    audio_service = get_audio_service()
+    sounds = audio_service.get_available_sounds()
+
+    if request.method == "POST":
+        playlist_service = get_playlist_service()
+        tracks = request.form.getlist("tracks")
+        playlist = Playlist(
+            id=None,
+            name=request.form.get("name", "New Playlist"),
+            tracks=tracks,
+        )
+        playlist_service.create(playlist)
+        return redirect(url_for("music"))
+
+    return render_template("playlist_form.html", playlist=None, sounds=sounds)
+
+
+@app.route("/playlists/<int:playlist_id>/edit", methods=["GET", "POST"])
+def edit_playlist(playlist_id: int):
+    """Edit a playlist."""
+    playlist_service = get_playlist_service()
+    audio_service = get_audio_service()
+    playlist = playlist_service.get_by_id(playlist_id)
+    sounds = audio_service.get_available_sounds()
+
+    if not playlist:
+        return redirect(url_for("music"))
+
+    if request.method == "POST":
+        playlist.name = request.form.get("name", playlist.name)
+        playlist.tracks = request.form.getlist("tracks")
+        playlist_service.update(playlist)
+        return redirect(url_for("music"))
+
+    return render_template("playlist_form.html", playlist=playlist, sounds=sounds)
+
+
+@app.route("/playlists/<int:playlist_id>/delete", methods=["POST"])
+def delete_playlist(playlist_id: int):
+    """Delete a playlist."""
+    playlist_service = get_playlist_service()
+    playlist_service.delete(playlist_id)
+    return redirect(url_for("music"))
+
+
+@app.route("/playlists/<int:playlist_id>/play", methods=["POST"])
+def play_playlist(playlist_id: int):
+    """Play a playlist."""
+    playlist_service = get_playlist_service()
+    audio_service = get_audio_service()
+    playlist = playlist_service.get_by_id(playlist_id)
+
+    if playlist and playlist.tracks:
+        audio_service.play_playlist(playlist.tracks)
+
+    return redirect(url_for("music"))
+
+
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
     """Application settings."""
@@ -130,12 +269,19 @@ def api_status():
     alarm_service = get_alarm_service()
     time_service = get_time_service()
     weather_service = get_weather_service()
+    audio_service = get_audio_service()
 
     return jsonify({
         "time": time_service.get_display_data(),
         "weather": weather_service.get_display_data(),
         "alarm_active": alarm_service.is_alarm_active,
         "is_snoozed": alarm_service.is_snoozed,
+        "music": {
+            "is_playing": audio_service.is_playing(),
+            "current_file": audio_service.current_file,
+            "is_playlist_mode": audio_service.is_playlist_mode,
+            "playlist_position": audio_service.playlist_position,
+        },
     })
 
 
