@@ -191,21 +191,36 @@ class WaveshareOLED(Display):
             # Create device
             self._device = ssd1309(serial, width=self.WIDTH, height=self.HEIGHT)
 
-            # Load fonts - try custom fonts first, fall back to default
-            try:
-                font_path = FONT_DIR / "DejaVuSans.ttf"
-                font_bold_path = FONT_DIR / "DejaVuSans-Bold.ttf"
-                bold_font = font_bold_path if font_bold_path.exists() else font_path
+            # Load fonts - try multiple locations
+            font_loaded = False
+            font_search_paths = [
+                # Local fonts directory
+                (FONT_DIR / "DejaVuSans.ttf", FONT_DIR / "DejaVuSans-Bold.ttf"),
+                # System fonts (Raspberry Pi / Debian)
+                (Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+                 Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")),
+                # macOS system fonts
+                (Path("/System/Library/Fonts/Helvetica.ttc"),
+                 Path("/System/Library/Fonts/Helvetica.ttc")),
+            ]
 
+            for font_path, bold_path in font_search_paths:
                 if font_path.exists():
-                    self._font_time = ImageFont.truetype(str(bold_font), 38)
-                    self._font_medium = ImageFont.truetype(str(font_path), 14)
-                    self._font_small = ImageFont.truetype(str(font_path), 11)
-                    self._font_alarm = ImageFont.truetype(str(bold_font), 16)
-                    self._font_alarm_small = ImageFont.truetype(str(font_path), 14)
-                else:
-                    raise FileNotFoundError("Custom font not found")
-            except Exception:
+                    try:
+                        bold_font = bold_path if bold_path.exists() else font_path
+                        self._font_time = ImageFont.truetype(str(bold_font), 28)
+                        self._font_medium = ImageFont.truetype(str(font_path), 14)
+                        self._font_small = ImageFont.truetype(str(font_path), 11)
+                        self._font_alarm = ImageFont.truetype(str(bold_font), 18)
+                        self._font_alarm_small = ImageFont.truetype(str(font_path), 14)
+                        font_loaded = True
+                        logger.info(f"Loaded fonts from {font_path.parent}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Failed to load font from {font_path}: {e}")
+                        continue
+
+            if not font_loaded:
                 # Fall back to default font
                 self._font_time = ImageFont.load_default()
                 self._font_medium = ImageFont.load_default()
@@ -391,27 +406,38 @@ class WaveshareOLED(Display):
 
                 draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
 
-                # Draw "Wake up" on first line, "Claire!" on second
-                draw.text((14, 8), "Wake up", font=self._font_alarm, fill=text_color)
-                draw.text((22, 32), "Claire!", font=self._font_alarm, fill=text_color)
+                # Draw "Wake up" on first line, "Claire!" on second - centered
+                text1 = "Wake up"
+                text2 = "Claire!"
+                bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
+                bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
+                x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
+                x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
+                draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
+                draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
             else:
                 # Normal mode - time, date, weather
-                # Time - large, takes up top portion (at least 1/4 of screen)
+                # Time - large, centered, takes up top portion
                 time_text = data.time
-                draw.text((0, -4), time_text, font=self._font_time, fill="white")
+                # Get text bounding box for centering
+                bbox = draw.textbbox((0, 0), time_text, font=self._font_time)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+                x_pos = (self.WIDTH - text_width) // 2
+                draw.text((x_pos, 2), time_text, font=self._font_time, fill="white")
 
-                # Date - small, short format, below time
+                # Date - small, short format, bottom left
                 short_date = self._format_short_date(data.date)
-                draw.text((2, 38), short_date, font=self._font_small, fill="white")
+                draw.text((2, 50), short_date, font=self._font_small, fill="white")
 
-                # Weather icon and temp - right side
+                # Weather icon and temp - bottom right
                 if data.weather_temp:
                     # Draw weather icon
                     icon_type = self._get_weather_icon_type(data.weather_condition)
-                    self._draw_weather_icon(draw, 80, 38, icon_type, size=22)
+                    self._draw_weather_icon(draw, 80, 44, icon_type, size=18)
 
                     # Temperature next to icon
-                    draw.text((104, 42), data.weather_temp, font=self._font_small, fill="white")
+                    draw.text((100, 50), data.weather_temp, font=self._font_small, fill="white")
 
 
 # Global instance
