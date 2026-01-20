@@ -434,10 +434,13 @@ class WaveshareOLED(Display):
                 if data.weather_temp:
                     # Draw weather icon
                     icon_type = self._get_weather_icon_type(data.weather_condition)
-                    self._draw_weather_icon(draw, 80, 44, icon_type, size=18)
+                    icon_x = 68
+                    icon_size = 18
+                    self._draw_weather_icon(draw, icon_x, 44, icon_type, size=icon_size)
 
-                    # Temperature next to icon
-                    draw.text((100, 50), data.weather_temp, font=self._font_small, fill="white")
+                    # Temperature next to icon with 10px gap
+                    temp_x = icon_x + icon_size + 10
+                    draw.text((temp_x, 50), data.weather_temp, font=self._font_small, fill="white")
 
 
 # Global instance

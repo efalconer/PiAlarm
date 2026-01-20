@@ -27,11 +27,19 @@ A Raspberry Pi-based alarm clock with weather display and web configuration.
 pip install -r requirements.txt
 ```
 
-### 2. Configure I2S audio (on Raspberry Pi)
+### 2. Install fonts
+
+The OLED display requires the DejaVu font family for proper text rendering:
+
+```bash
+sudo apt install fonts-dejavu
+```
+
+### 3. Configure I2S audio (on Raspberry Pi)
 
 Follow the [Adafruit Speaker Bonnet guide](https://learn.adafruit.com/adafruit-speaker-bonnet-for-raspberry-pi) to enable I2S audio.
 
-### 3. Connect the OLED display
+### 4. Connect the OLED display
 
 Enable SPI on your Pi:
 ```bash
@@ -51,7 +59,7 @@ Wire the Waveshare 2.42" OLED:
 | DC | GPIO 24 (Pin 18) | Data/Command |
 | RST | GPIO 25 (Pin 22) | Reset |
 
-### 4. Wire buttons
+### 5. Wire buttons
 
 Connect momentary push buttons between GPIO and GND:
 
@@ -61,11 +69,11 @@ Connect momentary push buttons between GPIO and GND:
 | Dismiss  | GPIO 27  |
 | Forecast | GPIO 22  |
 
-### 5. Add alarm sounds
+### 6. Add alarm sounds
 
 Place MP3 or WAV files in the `music/` directory.
 
-### 6. Configure weather
+### 7. Configure weather
 
 Get a free API key from [weatherapi.com](https://www.weatherapi.com) and configure via the web interface or edit `config.json`:
 
