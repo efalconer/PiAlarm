@@ -5,28 +5,42 @@
 {% block content %}
 <h1>Music</h1>
 
-{% if is_playing %}
+{% if has_active_playback %}
 <div class="card" style="background: #1e3a5f;">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
-            <div style="color: #4fc3f7; font-size: 12px; text-transform: uppercase;">Now Playing</div>
+            <div style="color: #4fc3f7; font-size: 12px; text-transform: uppercase;">
+                {% if is_paused %}Paused{% else %}Now Playing{% endif %}
+            </div>
             <div style="font-size: 18px; margin-top: 5px;">{{ current_file }}</div>
             {% if is_playlist_mode %}
             <div style="color: #888; font-size: 14px;">Track {{ playlist_position[0] }} of {{ playlist_position[1] }}</div>
             {% endif %}
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
             {% if is_playlist_mode %}
             <form action="{{ url_for('previous_track') }}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-secondary">Prev</button>
+                <button type="submit" class="btn btn-secondary">⏮</button>
             </form>
+            {% endif %}
+            {% if is_paused %}
+            <form action="{{ url_for('resume_music') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-success">▶</button>
+            </form>
+            {% else %}
+            <form action="{{ url_for('pause_music') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn">⏸</button>
+            </form>
+            {% endif %}
+            {% if is_playlist_mode %}
             <form action="{{ url_for('next_track') }}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-secondary">Next</button>
+                <button type="submit" class="btn btn-secondary">⏭</button>
             </form>
             {% endif %}
             <form action="{{ url_for('stop_music') }}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-danger">Stop</button>
+                <button type="submit" class="btn btn-danger">⏹</button>
             </form>
+            <a href="{{ url_for('now_playing') }}" class="btn btn-secondary">Full View</a>
         </div>
     </div>
 </div>
@@ -36,9 +50,9 @@
     <h2>Upload Music</h2>
     <form action="{{ url_for('upload_music') }}" method="post" enctype="multipart/form-data">
         <div class="form-group">
-            <input type="file" name="files" accept=".mp3,.m4a" multiple
+            <input type="file" name="files" accept=".mp3,.wav" multiple
                    style="padding: 10px; background: #0f0f23; border-radius: 6px; width: 100%;">
-            <p style="color: #666; font-size: 12px; margin-top: 5px;">Select one or more audio files (MP3 or M4A, max 50MB each)</p>
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">Select one or more audio files (MP3 or WAV, max 50MB each)</p>
         </div>
         <button type="submit" class="btn">Upload</button>
     </form>
@@ -96,7 +110,7 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p style="color: #888;">No music files. Upload some MP3s to get started!</p>
+    <p style="color: #888;">No music files. Upload some audio files to get started!</p>
     {% endif %}
 </div>
 {% endblock %}

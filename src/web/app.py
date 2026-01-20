@@ -119,10 +119,28 @@ def music():
         "music.html",
         sounds=audio_service.get_available_sounds(),
         playlists=playlist_service.get_all(),
+        has_active_playback=audio_service.has_active_playback(),
         is_playing=audio_service.is_playing(),
+        is_paused=audio_service.is_paused,
         current_file=audio_service.current_file,
         is_playlist_mode=audio_service.is_playlist_mode,
         playlist_position=audio_service.playlist_position,
+    )
+
+
+@app.route("/music/now-playing")
+def now_playing():
+    """Now playing page with full controls."""
+    audio_service = get_audio_service()
+    return render_template(
+        "now_playing.html",
+        has_active_playback=audio_service.has_active_playback(),
+        is_playing=audio_service.is_playing(),
+        is_paused=audio_service.is_paused,
+        current_file=audio_service.current_file,
+        is_playlist_mode=audio_service.is_playlist_mode,
+        playlist_position=audio_service.playlist_position,
+        volume=int(audio_service.get_volume() * 100),
     )
 
 
@@ -136,7 +154,7 @@ def upload_music():
 
     files = request.files.getlist("files")
     for file in files:
-        if file and file.filename and file.filename.lower().endswith((".mp3", ".m4a")):
+        if file and file.filename and file.filename.lower().endswith((".mp3", ".wav")):
             filename = secure_filename(file.filename)
             file.save(MUSIC_DIR / filename)
             logger.info(f"Uploaded: {filename}")
@@ -166,6 +184,22 @@ def stop_music():
     audio_service = get_audio_service()
     audio_service.stop()
     return redirect(url_for("music"))
+
+
+@app.route("/music/pause", methods=["POST"])
+def pause_music():
+    """Pause playback."""
+    audio_service = get_audio_service()
+    audio_service.pause()
+    return redirect(url_for("now_playing"))
+
+
+@app.route("/music/resume", methods=["POST"])
+def resume_music():
+    """Resume playback."""
+    audio_service = get_audio_service()
+    audio_service.unpause()
+    return redirect(url_for("now_playing"))
 
 
 @app.route("/music/next", methods=["POST"])
@@ -277,7 +311,9 @@ def api_status():
         "alarm_active": alarm_service.is_alarm_active,
         "is_snoozed": alarm_service.is_snoozed,
         "music": {
+            "has_active_playback": audio_service.has_active_playback(),
             "is_playing": audio_service.is_playing(),
+            "is_paused": audio_service.is_paused,
             "current_file": audio_service.current_file,
             "is_playlist_mode": audio_service.is_playlist_mode,
             "playlist_position": audio_service.playlist_position,

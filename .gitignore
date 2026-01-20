@@ -11,7 +11,7 @@ venv/
 config.json
 data/
 music/*.mp3
-music/*.m4a
+music/*.wav
 
 # IDE
 .vscode/

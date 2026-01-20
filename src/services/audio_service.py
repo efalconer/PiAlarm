@@ -21,6 +21,7 @@ class AudioService:
         self._playlist: list[str] = []
         self._playlist_index = 0
         self._playlist_mode = False
+        self._paused = False
 
     def initialize(self) -> bool:
         """Initialize pygame mixer for audio playback."""
@@ -45,10 +46,10 @@ class AudioService:
             logger.info("Audio service shutdown")
 
     def get_available_sounds(self) -> list[str]:
-        """Get list of available audio files (MP3 and M4A)."""
+        """Get list of available audio files (MP3 and WAV)."""
         if not MUSIC_DIR.exists():
             return []
-        files = list(MUSIC_DIR.glob("*.mp3")) + list(MUSIC_DIR.glob("*.m4a"))
+        files = list(MUSIC_DIR.glob("*.mp3")) + list(MUSIC_DIR.glob("*.wav"))
         return sorted([f.name for f in files])
 
     def play(self, filename: str, loop: bool = True) -> bool:
@@ -148,30 +149,50 @@ class AudioService:
 
     def stop(self) -> None:
         """Stop current playback."""
-        if self._initialized and pygame.mixer.music.get_busy():
+        if self._initialized:
             pygame.mixer.music.stop()
             logger.info("Playback stopped")
         self._current_file = None
         self._playlist_mode = False
         self._playlist = []
+        self._paused = False
 
     def pause(self) -> None:
         """Pause current playback."""
-        if self._initialized:
+        if self._initialized and self.is_playing():
             pygame.mixer.music.pause()
+            self._paused = True
             logger.info("Playback paused")
 
     def unpause(self) -> None:
         """Resume paused playback."""
-        if self._initialized:
+        if self._initialized and self._paused:
             pygame.mixer.music.unpause()
+            self._paused = False
             logger.info("Playback resumed")
 
+    def toggle_pause(self) -> bool:
+        """Toggle pause state. Returns new paused state."""
+        if self._paused:
+            self.unpause()
+        else:
+            self.pause()
+        return self._paused
+
+    @property
+    def is_paused(self) -> bool:
+        """Check if playback is paused."""
+        return self._paused
+
     def is_playing(self) -> bool:
-        """Check if audio is currently playing."""
+        """Check if audio is currently playing (not paused)."""
         if not self._initialized:
             return False
         return pygame.mixer.music.get_busy()
+
+    def has_active_playback(self) -> bool:
+        """Check if there's active playback (playing or paused)."""
+        return self._current_file is not None
 
     def set_volume(self, volume: float) -> None:
         """Set playback volume (0.0 to 1.0)."""

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Now Playing - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>Now Playing</h1>
+
+{% if has_active_playback %}
+<div class="card" style="text-align: center;">
+    <div style="font-size: 14px; color: #4fc3f7; text-transform: uppercase; margin-bottom: 10px;">
+        {% if is_paused %}Paused{% elif is_playing %}Playing{% else %}Stopped{% endif %}
+    </div>
+
+    <div style="font-size: 24px; margin-bottom: 10px; word-break: break-word;">
+        {{ current_file }}
+    </div>
+
+    {% if is_playlist_mode %}
+    <div style="color: #888; margin-bottom: 20px;">
+        Track {{ playlist_position[0] }} of {{ playlist_position[1] }}
+    </div>
+    {% endif %}
+
+    <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+        {% if is_playlist_mode %}
+        <form action="{{ url_for('previous_track') }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-secondary" style="font-size: 20px; padding: 15px 25px;">⏮</button>
+        </form>
+        {% endif %}
+
+        {% if is_paused %}
+        <form action="{{ url_for('resume_music') }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-success" style="font-size: 20px; padding: 15px 30px;">▶</button>
+        </form>
+        {% else %}
+        <form action="{{ url_for('pause_music') }}" method="post" style="display:inline;">
+            <button type="submit" class="btn" style="font-size: 20px; padding: 15px 30px;">⏸</button>
+        </form>
+        {% endif %}
+
+        {% if is_playlist_mode %}
+        <form action="{{ url_for('next_track') }}" method="post" style="display:inline;">
+            <button type="submit" class="btn btn-secondary" style="font-size: 20px; padding: 15px 25px;">⏭</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <form action="{{ url_for('stop_music') }}" method="post">
+        <button type="submit" class="btn btn-danger">Stop</button>
+    </form>
+</div>
+{% else %}
+<div class="card" style="text-align: center;">
+    <p style="color: #888; margin-bottom: 20px;">Nothing is currently playing.</p>
+    <a href="{{ url_for('music') }}" class="btn">Go to Music Library</a>
+</div>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('music') }}" class="btn btn-secondary">← Back to Music</a>
+</div>
+{% endblock %}
