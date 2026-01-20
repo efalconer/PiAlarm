@@ -27,7 +27,18 @@ class TimeService:
     def sync_time(self) -> bool:
         """Sync system time via NTP. Returns True if successful."""
         try:
-            # Use systemd-timesyncd on Raspberry Pi
+            # Check if NTP is already enabled (avoids password prompt)
+            result = subprocess.run(
+                ["timedatectl", "show", "--property=NTP", "--value"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip().lower() == "yes":
+                logger.info("NTP time sync already enabled")
+                return True
+
+            # NTP not enabled, try to enable it
             result = subprocess.run(
                 ["timedatectl", "set-ntp", "true"],
                 capture_output=True,
