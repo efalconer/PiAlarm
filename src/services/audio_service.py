@@ -45,10 +45,11 @@ class AudioService:
             logger.info("Audio service shutdown")
 
     def get_available_sounds(self) -> list[str]:
-        """Get list of available MP3 files."""
+        """Get list of available audio files (MP3 and M4A)."""
         if not MUSIC_DIR.exists():
             return []
-        return sorted([f.name for f in MUSIC_DIR.glob("*.mp3")])
+        files = list(MUSIC_DIR.glob("*.mp3")) + list(MUSIC_DIR.glob("*.m4a"))
+        return sorted([f.name for f in files])
 
     def play(self, filename: str, loop: bool = True) -> bool:
         """Play an MP3 file. Returns True if successful."""

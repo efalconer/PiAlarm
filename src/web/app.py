@@ -136,7 +136,7 @@ def upload_music():
 
     files = request.files.getlist("files")
     for file in files:
-        if file and file.filename and file.filename.lower().endswith(".mp3"):
+        if file and file.filename and file.filename.lower().endswith((".mp3", ".m4a")):
             filename = secure_filename(file.filename)
             file.save(MUSIC_DIR / filename)
             logger.info(f"Uploaded: {filename}")

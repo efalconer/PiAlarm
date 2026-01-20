@@ -36,9 +36,9 @@
     <h2>Upload Music</h2>
     <form action="{{ url_for('upload_music') }}" method="post" enctype="multipart/form-data">
         <div class="form-group">
-            <input type="file" name="files" accept=".mp3" multiple
+            <input type="file" name="files" accept=".mp3,.m4a" multiple
                    style="padding: 10px; background: #0f0f23; border-radius: 6px; width: 100%;">
-            <p style="color: #666; font-size: 12px; margin-top: 5px;">Select one or more MP3 files (max 50MB each)</p>
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">Select one or more audio files (MP3 or M4A, max 50MB each)</p>
         </div>
         <button type="submit" class="btn">Upload</button>
     </form>
