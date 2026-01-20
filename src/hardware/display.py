@@ -100,7 +100,7 @@ class ConsoleDisplay(Display):
         print("----------------")
 
     def show_alarm_active(self, label: str | None = None) -> None:
-        alarm_text = f" [ALARM: {label}]" if label else " [ALARM!]"
+        alarm_text = " [Wake up Claire!]"
         print(alarm_text, end="", flush=True)
 
     def clear_alarm_active(self) -> None:
@@ -125,6 +125,27 @@ class WaveshareOLED(Display):
     WIDTH = 128
     HEIGHT = 64
 
+    # Weather condition to icon mapping
+    WEATHER_ICONS = {
+        "sunny": "sun",
+        "clear": "sun",
+        "partly cloudy": "partial",
+        "cloudy": "cloud",
+        "overcast": "cloud",
+        "mist": "cloud",
+        "fog": "cloud",
+        "rain": "rain",
+        "drizzle": "rain",
+        "light rain": "rain",
+        "heavy rain": "rain",
+        "showers": "rain",
+        "thunderstorm": "storm",
+        "thunder": "storm",
+        "snow": "snow",
+        "sleet": "snow",
+        "blizzard": "snow",
+    }
+
     def __init__(self, interface: str = "spi", spi_device: int = 0, spi_port: int = 0,
                  gpio_dc: int = 24, gpio_rst: int = 25):
         """
@@ -146,9 +167,11 @@ class WaveshareOLED(Display):
         self._device = None
         self._brightness = 100
         self._last_data: DisplayData | None = None
-        self._font_large = None
+        self._font_time = None
         self._font_medium = None
         self._font_small = None
+        self._font_alarm = None
+        self._font_alarm_small = None
         self._alarm_blink_state = False
 
     def initialize(self) -> bool:
@@ -171,17 +194,24 @@ class WaveshareOLED(Display):
             # Load fonts - try custom fonts first, fall back to default
             try:
                 font_path = FONT_DIR / "DejaVuSans.ttf"
+                font_bold_path = FONT_DIR / "DejaVuSans-Bold.ttf"
+                bold_font = font_bold_path if font_bold_path.exists() else font_path
+
                 if font_path.exists():
-                    self._font_large = ImageFont.truetype(str(font_path), 32)
+                    self._font_time = ImageFont.truetype(str(bold_font), 38)
                     self._font_medium = ImageFont.truetype(str(font_path), 14)
-                    self._font_small = ImageFont.truetype(str(font_path), 10)
+                    self._font_small = ImageFont.truetype(str(font_path), 11)
+                    self._font_alarm = ImageFont.truetype(str(bold_font), 16)
+                    self._font_alarm_small = ImageFont.truetype(str(font_path), 14)
                 else:
                     raise FileNotFoundError("Custom font not found")
             except Exception:
                 # Fall back to default font
-                self._font_large = ImageFont.load_default()
+                self._font_time = ImageFont.load_default()
                 self._font_medium = ImageFont.load_default()
                 self._font_small = ImageFont.load_default()
+                self._font_alarm = ImageFont.load_default()
+                self._font_alarm_small = ImageFont.load_default()
                 logger.warning("Using default font - install fonts for better display")
 
             logger.info(f"Waveshare OLED initialized ({self._interface})")
@@ -209,6 +239,98 @@ class WaveshareOLED(Display):
             # Convert 0-100 to 0-255
             contrast = int(self._brightness * 255 / 100)
             self._device.contrast(contrast)
+
+    def _get_weather_icon_type(self, condition: str | None) -> str:
+        """Get icon type from weather condition string."""
+        if not condition:
+            return "sun"
+        condition_lower = condition.lower()
+        for key, icon in self.WEATHER_ICONS.items():
+            if key in condition_lower:
+                return icon
+        return "sun"  # Default
+
+    def _draw_weather_icon(self, draw, x: int, y: int, icon_type: str, size: int = 20):
+        """Draw a weather icon at the specified position."""
+        cx, cy = x + size // 2, y + size // 2
+
+        if icon_type == "sun":
+            # Sun: circle with rays
+            r = size // 3
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="white")
+            # Rays
+            for i in range(8):
+                import math
+                angle = i * math.pi / 4
+                x1 = cx + int((r + 2) * math.cos(angle))
+                y1 = cy + int((r + 2) * math.sin(angle))
+                x2 = cx + int((r + 5) * math.cos(angle))
+                y2 = cy + int((r + 5) * math.sin(angle))
+                draw.line([x1, y1, x2, y2], fill="white", width=1)
+
+        elif icon_type == "cloud":
+            # Cloud: overlapping circles
+            draw.ellipse([x + 2, y + 8, x + 12, y + 18], fill="white")
+            draw.ellipse([x + 8, y + 4, x + 20, y + 16], fill="white")
+            draw.ellipse([x + 14, y + 8, x + 24, y + 18], fill="white")
+
+        elif icon_type == "partial":
+            # Partial cloud: small sun with cloud
+            r = 4
+            draw.ellipse([x + 12 - r, y + 4 - r + 4, x + 12 + r, y + 4 + r + 4], fill="white")
+            draw.ellipse([x, y + 10, x + 8, y + 18], fill="white")
+            draw.ellipse([x + 5, y + 6, x + 15, y + 16], fill="white")
+            draw.ellipse([x + 10, y + 10, x + 20, y + 18], fill="white")
+
+        elif icon_type == "rain":
+            # Rain: cloud with drops
+            draw.ellipse([x + 2, y + 4, x + 10, y + 12], fill="white")
+            draw.ellipse([x + 6, y + 2, x + 16, y + 10], fill="white")
+            draw.ellipse([x + 12, y + 4, x + 20, y + 12], fill="white")
+            # Rain drops
+            draw.line([x + 5, y + 14, x + 3, y + 19], fill="white", width=1)
+            draw.line([x + 11, y + 14, x + 9, y + 19], fill="white", width=1)
+            draw.line([x + 17, y + 14, x + 15, y + 19], fill="white", width=1)
+
+        elif icon_type == "storm":
+            # Storm: cloud with lightning
+            draw.ellipse([x + 2, y + 2, x + 10, y + 10], fill="white")
+            draw.ellipse([x + 6, y, x + 16, y + 8], fill="white")
+            draw.ellipse([x + 12, y + 2, x + 20, y + 10], fill="white")
+            # Lightning bolt
+            draw.polygon([
+                (x + 12, y + 10), (x + 8, y + 14), (x + 11, y + 14),
+                (x + 9, y + 20), (x + 15, y + 13), (x + 12, y + 13)
+            ], fill="white")
+
+        elif icon_type == "snow":
+            # Snow: cloud with snowflakes
+            draw.ellipse([x + 2, y + 4, x + 10, y + 12], fill="white")
+            draw.ellipse([x + 6, y + 2, x + 16, y + 10], fill="white")
+            draw.ellipse([x + 12, y + 4, x + 20, y + 12], fill="white")
+            # Snowflakes (dots)
+            draw.ellipse([x + 4, y + 15, x + 6, y + 17], fill="white")
+            draw.ellipse([x + 10, y + 17, x + 12, y + 19], fill="white")
+            draw.ellipse([x + 16, y + 15, x + 18, y + 17], fill="white")
+
+    def _format_short_date(self, date_str: str) -> str:
+        """Convert date to short format (e.g., 'Jan 15')."""
+        # Try to parse common date formats
+        months = {
+            "january": "Jan", "february": "Feb", "march": "Mar",
+            "april": "Apr", "may": "May", "june": "Jun",
+            "july": "Jul", "august": "Aug", "september": "Sep",
+            "october": "Oct", "november": "Nov", "december": "Dec"
+        }
+        date_lower = date_str.lower()
+        for full, short in months.items():
+            if full in date_lower:
+                # Extract day number
+                import re
+                day_match = re.search(r'\d+', date_str)
+                if day_match:
+                    return f"{short} {day_match.group()}"
+        return date_str[:10]  # Fallback
 
     def show_time(self, time: str, date: str) -> None:
         """Display the current time and date."""
@@ -255,37 +377,41 @@ class WaveshareOLED(Display):
 
         with canvas(self._device) as draw:
             if data.alarm_active:
-                # Alarm mode - large blinking display
+                # Alarm mode - "Wake up Claire!" flashing black/white
                 self._alarm_blink_state = not self._alarm_blink_state
+
                 if self._alarm_blink_state:
-                    # Draw inverted (white background, black text)
-                    draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill="white")
-                    draw.text((10, 5), "ALARM!", font=self._font_large, fill="black")
-                    if data.alarm_label:
-                        draw.text((10, 42), data.alarm_label[:15], font=self._font_medium, fill="black")
+                    # White background, black text
+                    bg_color = "white"
+                    text_color = "black"
                 else:
-                    # Normal colors
-                    draw.text((10, 5), "ALARM!", font=self._font_large, fill="white")
-                    if data.alarm_label:
-                        draw.text((10, 42), data.alarm_label[:15], font=self._font_medium, fill="white")
+                    # Black background, white text
+                    bg_color = "black"
+                    text_color = "white"
+
+                draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
+
+                # Draw "Wake up" on first line, "Claire!" on second
+                draw.text((14, 8), "Wake up", font=self._font_alarm, fill=text_color)
+                draw.text((22, 32), "Claire!", font=self._font_alarm, fill=text_color)
             else:
                 # Normal mode - time, date, weather
-                # Time - large, centered at top
+                # Time - large, takes up top portion (at least 1/4 of screen)
                 time_text = data.time
-                draw.text((4, 0), time_text, font=self._font_large, fill="white")
+                draw.text((0, -4), time_text, font=self._font_time, fill="white")
 
-                # Date - medium, below time
-                draw.text((4, 36), data.date[:20], font=self._font_small, fill="white")
+                # Date - small, short format, below time
+                short_date = self._format_short_date(data.date)
+                draw.text((2, 38), short_date, font=self._font_small, fill="white")
 
-                # Weather - bottom right
+                # Weather icon and temp - right side
                 if data.weather_temp:
-                    weather_text = f"{data.weather_temp}"
-                    draw.text((90, 0), weather_text, font=self._font_medium, fill="white")
+                    # Draw weather icon
+                    icon_type = self._get_weather_icon_type(data.weather_condition)
+                    self._draw_weather_icon(draw, 80, 38, icon_type, size=22)
 
-                    if data.weather_condition:
-                        # Truncate condition to fit
-                        cond = data.weather_condition[:12]
-                        draw.text((4, 50), cond, font=self._font_small, fill="white")
+                    # Temperature next to icon
+                    draw.text((104, 42), data.weather_temp, font=self._font_small, fill="white")
 
 
 # Global instance
