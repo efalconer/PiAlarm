@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if is_alarm_active %}
+<div class="alert alert-alarm">
+    <strong>ALARM!</strong>
+    <div style="margin-top: 10px; display: flex; gap: 10px;">
+        <button class="btn btn-secondary" onclick="snooze()">Snooze</button>
+        <button class="btn btn-success" onclick="dismiss()">Dismiss</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="time-display" id="time">{{ time_data.time }}</div>
+    <div class="date-display">{{ time_data.date }}</div>
+</div>
+
+{% if weather %}
+<div class="card">
+    <div class="weather-display">{{ weather.temp }}</div>
+    <div class="weather-condition">{{ weather.condition }}</div>
+    <div style="margin-top: 15px; text-align: center;">
+        <button class="btn btn-secondary" onclick="showForecast()">Show Forecast</button>
+    </div>
+    <div id="forecast" style="display: none; margin-top: 15px;"></div>
+</div>
+{% else %}
+<div class="card">
+    <p style="text-align: center; color: #888;">Weather not configured. <a href="{{ url_for('settings') }}">Set up weather</a></p>
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Upcoming Alarms</h2>
+    {% if alarms %}
+    <ul class="alarm-list">
+        {% for alarm in alarms if alarm.enabled %}
+        <li class="alarm-item">
+            <div>
+                <div class="alarm-time">{{ "%02d:%02d"|format(alarm.hour, alarm.minute) }}</div>
+                {% if alarm.label %}<div class="alarm-label">{{ alarm.label }}</div>{% endif %}
+            </div>
+        </li>
+        {% else %}
+        <li class="alarm-item">
+            <span style="color: #888;">No active alarms</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #888;">No alarms set. <a href="{{ url_for('new_alarm') }}">Create one</a></p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateTime() {
+    fetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('time').textContent = data.time.time;
+        });
+}
+setInterval(updateTime, 1000);
+
+function snooze() {
+    fetch('/api/snooze', { method: 'POST' }).then(() => location.reload());
+}
+
+function dismiss() {
+    fetch('/api/dismiss', { method: 'POST' }).then(() => location.reload());
+}
+
+function showForecast() {
+    const div = document.getElementById('forecast');
+    if (div.style.display === 'none') {
+        fetch('/api/forecast')
+            .then(r => r.json())
+            .then(data => {
+                div.innerHTML = data.map(h =>
+                    `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #333;">
+                        <span>${h.time}</span>
+                        <span>${h.temp}</span>
+                        <span style="color:#888;">${h.condition}</span>
+                    </div>`
+                ).join('');
+                div.style.display = 'block';
+            });
+    } else {
+        div.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

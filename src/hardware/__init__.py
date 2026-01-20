@@ -1,0 +1,1 @@
+"""PiAlarm hardware interfaces."""

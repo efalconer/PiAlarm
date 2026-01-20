@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit Alarm' if alarm else 'New Alarm' }} - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>{{ 'Edit Alarm' if alarm else 'New Alarm' }}</h1>
+
+<div class="card">
+    <form method="post">
+        <div class="form-group">
+            <label for="time">Time</label>
+            <input type="time" id="time" name="time"
+                   value="{{ '%02d:%02d'|format(alarm.hour, alarm.minute) if alarm else '07:00' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="label">Label (optional)</label>
+            <input type="text" id="label" name="label"
+                   value="{{ alarm.label if alarm else '' }}" placeholder="Wake up">
+        </div>
+
+        <div class="form-group">
+            <label>Repeat on</label>
+            <div class="checkbox-group">
+                {% set days = [('0', 'Mon'), ('1', 'Tue'), ('2', 'Wed'), ('3', 'Thu'), ('4', 'Fri'), ('5', 'Sat'), ('6', 'Sun')] %}
+                {% for value, label in days %}
+                <label>
+                    <input type="checkbox" name="days" value="{{ value }}"
+                           {% if alarm and value|int in alarm.days %}checked{% endif %}>
+                    <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <p style="color: #666; font-size: 12px; margin-top: 10px;">Leave all unchecked for every day</p>
+        </div>
+
+        <div class="form-group">
+            <label for="sound">Alarm Sound</label>
+            <select id="sound" name="sound">
+                {% if sounds %}
+                    {% for sound in sounds %}
+                    <option value="{{ sound }}" {% if alarm and alarm.sound_file == sound %}selected{% endif %}>
+                        {{ sound }}
+                    </option>
+                    {% endfor %}
+                {% else %}
+                    <option value="">No sounds available</option>
+                {% endif %}
+            </select>
+            {% if not sounds %}
+            <p style="color: #e74c3c; font-size: 12px; margin-top: 5px;">
+                Add MP3 files to the music/ folder
+            </p>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn">{{ 'Save Changes' if alarm else 'Create Alarm' }}</button>
+            <a href="{{ url_for('list_alarms') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

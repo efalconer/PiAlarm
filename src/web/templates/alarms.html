@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Alarms - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>Alarms</h1>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('new_alarm') }}" class="btn">+ New Alarm</a>
+</div>
+
+{% if alarms %}
+<ul class="alarm-list">
+    {% for alarm in alarms %}
+    <li class="alarm-item">
+        <div>
+            <div class="alarm-time">{{ "%02d:%02d"|format(alarm.hour, alarm.minute) }}</div>
+            {% if alarm.label %}<div class="alarm-label">{{ alarm.label }}</div>{% endif %}
+            <div class="alarm-days">
+                {% set days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+                {% if alarm.days %}
+                    {% for d in alarm.days %}{{ days[d] }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% else %}
+                    Every day
+                {% endif %}
+            </div>
+        </div>
+        <div class="alarm-actions">
+            <div class="toggle {% if alarm.enabled %}active{% endif %}"
+                 onclick="toggleAlarm({{ alarm.id }}, this)"></div>
+            <a href="{{ url_for('edit_alarm', alarm_id=alarm.id) }}" class="btn btn-secondary">Edit</a>
+            <form action="{{ url_for('delete_alarm', alarm_id=alarm.id) }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this alarm?')">Delete</button>
+            </form>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="card">
+    <p style="text-align: center; color: #888;">No alarms yet. Create your first alarm!</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAlarm(id, el) {
+    fetch(`/alarms/${id}/toggle`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            el.classList.toggle('active', data.enabled);
+        });
+}
+</script>
+{% endblock %}
