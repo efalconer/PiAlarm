@@ -6,7 +6,7 @@ A Raspberry Pi-based alarm clock with weather display and web configuration.
 
 - Raspberry Pi Zero 2
 - Adafruit I2S 3W Stereo Speaker Bonnet
-- Display: TBD
+- Waveshare 2.42" OLED display (SSD1309, 128x64)
 - 3 momentary push buttons (snooze, dismiss, forecast)
 
 ## Features
@@ -31,7 +31,24 @@ pip install -r requirements.txt
 
 Follow the [Adafruit Speaker Bonnet guide](https://learn.adafruit.com/adafruit-speaker-bonnet-for-raspberry-pi) to enable I2S audio.
 
-### 3. Wire buttons
+### 3. Connect the OLED display
+
+Enable I2C on your Pi:
+```bash
+sudo raspi-config
+# Navigate to: Interface Options → I2C → Enable
+```
+
+Wire the Waveshare 2.42" OLED (I2C mode):
+
+| OLED Pin | Pi Pin |
+|----------|--------|
+| VCC | 3.3V (Pin 1) |
+| GND | GND (Pin 6) |
+| SDA | GPIO 2 (Pin 3) |
+| SCL | GPIO 3 (Pin 5) |
+
+### 4. Wire buttons
 
 Connect momentary push buttons between GPIO and GND:
 
@@ -41,11 +58,11 @@ Connect momentary push buttons between GPIO and GND:
 | Dismiss  | GPIO 27  |
 | Forecast | GPIO 22  |
 
-### 4. Add alarm sounds
+### 5. Add alarm sounds
 
-Place MP3 files in the `music/` directory.
+Place MP3 or WAV files in the `music/` directory.
 
-### 5. Configure weather
+### 6. Configure weather
 
 Get a free API key from [weatherapi.com](https://www.weatherapi.com) and configure via the web interface or edit `config.json`:
 

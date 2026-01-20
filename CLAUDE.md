@@ -9,7 +9,7 @@ PiAlarm is a Raspberry Pi Zero 2-based alarm clock with I2S audio output, weathe
 **Hardware:**
 - Raspberry Pi Zero 2
 - Adafruit I2S 3W Stereo Speaker Bonnet
-- Display: TBD
+- Waveshare 2.42" OLED (SSD1309, 128x64, I2C/SPI)
 
 ## Commands
 
@@ -74,3 +74,31 @@ Weather requires a WeatherAPI.com API key. Configure via web interface at `/sett
 - GPIO 22: Forecast button
 
 Buttons use pull-up resistors (connect button between GPIO and GND).
+
+## Display Configuration
+
+The Waveshare 2.42" OLED uses the SSD1309 controller. Configure in `config.json`:
+
+```json
+{
+  "display_type": "auto",
+  "display_interface": "i2c",
+  "display_i2c_address": 60,
+  "display_brightness": 100
+}
+```
+
+- `display_type`: "auto" (detect), "oled", or "console"
+- `display_interface`: "i2c" or "spi"
+- `display_i2c_address`: I2C address (60 = 0x3C, 61 = 0x3D)
+- `display_brightness`: 0-100
+
+**I2C Wiring:**
+| OLED Pin | Pi Pin |
+|----------|--------|
+| VCC | 3.3V (Pin 1) |
+| GND | GND (Pin 6) |
+| SDA | GPIO 2 (Pin 3) |
+| SCL | GPIO 3 (Pin 5) |
+
+Enable I2C on Pi: `sudo raspi-config` → Interface Options → I2C

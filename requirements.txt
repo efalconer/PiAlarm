@@ -3,3 +3,5 @@ Flask>=3.0.0
 requests>=2.31.0
 RPi.GPIO>=0.7.1;platform_machine=='armv7l' or platform_machine=='aarch64'
 adafruit-python-shell
+luma.oled>=3.13.0
+pillow>=10.0.0

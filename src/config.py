@@ -13,6 +13,9 @@ DEFAULT_CONFIG = {
     "display_brightness": 100,
     "time_format_24h": False,
     "web_port": 5000,
+    "display_type": "auto",  # "auto", "oled", "console"
+    "display_interface": "i2c",  # "i2c" or "spi"
+    "display_i2c_address": 60,  # 0x3C = 60
 }
 
 CONFIG_DIR = Path(__file__).parent.parent
@@ -80,6 +83,22 @@ class Config:
     @property
     def web_port(self) -> int:
         return self._config.get("web_port", 5000)
+
+    @property
+    def display_type(self) -> str:
+        return self._config.get("display_type", "auto")
+
+    @property
+    def display_interface(self) -> str:
+        return self._config.get("display_interface", "i2c")
+
+    @property
+    def display_i2c_address(self) -> int:
+        return self._config.get("display_i2c_address", 60)
+
+    @property
+    def display_brightness(self) -> int:
+        return self._config.get("display_brightness", 100)
 
 
 # Global config instance

@@ -12,7 +12,7 @@ from src.services.weather_service import get_weather_service
 from src.services.alarm_service import get_alarm_service
 from src.services.audio_service import get_audio_service
 from src.hardware.buttons import get_button_handler, Button
-from src.hardware.display import get_display, DisplayData
+from src.hardware.display import get_display, set_display, DisplayData, ConsoleDisplay, WaveshareOLED
 from src.web.app import run_web_server
 
 logging.basicConfig(
@@ -33,12 +33,44 @@ class PiAlarm:
         self.alarm_service = get_alarm_service()
         self.audio_service = get_audio_service()
         self.button_handler = get_button_handler()
-        self.display = get_display()
+        self.display = self._init_display()
 
         self._running = False
         self._web_thread: threading.Thread | None = None
         self._last_weather_update = 0
         self._last_alarm_check = -1
+
+    def _init_display(self):
+        """Initialize the appropriate display based on config."""
+        display_type = self.config.display_type
+
+        if display_type == "console":
+            logger.info("Using console display")
+            display = ConsoleDisplay()
+            set_display(display)
+            return display
+
+        if display_type == "oled" or display_type == "auto":
+            # Try to initialize OLED
+            try:
+                display = WaveshareOLED(
+                    interface=self.config.display_interface,
+                    i2c_address=self.config.display_i2c_address,
+                )
+                set_display(display)
+                logger.info("Using Waveshare OLED display")
+                return display
+            except Exception as e:
+                if display_type == "oled":
+                    logger.error(f"Failed to create OLED display: {e}")
+                else:
+                    logger.info(f"OLED not available, falling back to console: {e}")
+
+        # Fall back to console
+        logger.info("Using console display")
+        display = ConsoleDisplay()
+        set_display(display)
+        return display
 
     def initialize(self) -> bool:
         """Initialize all services."""
@@ -54,6 +86,8 @@ class PiAlarm:
         # Initialize display
         if not self.display.initialize():
             logger.warning("Display failed to initialize")
+        else:
+            self.display.set_brightness(self.config.display_brightness)
 
         # Initialize buttons
         if not self.button_handler.initialize():
