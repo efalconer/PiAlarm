@@ -372,7 +372,12 @@ def edit_sprite(sprite_id: str):
         sprite_service.update(sprite)
         return redirect(url_for("list_sprites"))
 
-    return render_template("sprite_editor.html", sprite=sprite)
+    # Prepare serializable data for template
+    sprite_data = {
+        "pixels": [[x, y] for x, y in sprite.pixels],
+        "time_ranges": [tr.to_dict() for tr in sprite.time_ranges],
+    }
+    return render_template("sprite_editor.html", sprite=sprite, sprite_data=sprite_data)
 
 
 @app.route("/sprites/<sprite_id>/delete", methods=["POST"])

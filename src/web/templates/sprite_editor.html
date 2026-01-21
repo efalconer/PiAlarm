@@ -103,14 +103,14 @@ const previewCtx = previewCanvas.getContext('2d');
 
 // Initialize with existing sprite data if editing
 {% if sprite %}
-const existingPixels = {{ sprite.pixels | tojson }};
+const existingPixels = {{ sprite_data.pixels | tojson }};
 existingPixels.forEach(function(p) {
     if (p[0] >= 0 && p[0] < GRID_SIZE && p[1] >= 0 && p[1] < GRID_SIZE) {
         grid[p[1]][p[0]] = true;
     }
 });
 
-const existingTimeRanges = {{ sprite.time_ranges | map(attribute='to_dict') | list | tojson }};
+const existingTimeRanges = {{ sprite_data.time_ranges | tojson }};
 existingTimeRanges.forEach(function(tr) {
     addTimeRange(tr.start, tr.end);
 });
