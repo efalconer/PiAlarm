@@ -260,15 +260,29 @@ class WaveshareOLED(Display):
             contrast = int(self._brightness * 255 / 100)
             self._device.contrast(contrast)
 
-    def _get_weather_icon_type(self, condition: str | None) -> str:
-        """Get icon type from weather condition string."""
+    def _is_nighttime(self, hour: int) -> bool:
+        """Determine if it's nighttime (for moon icons)."""
+        return hour >= 20 or hour < 6
+
+    def _get_weather_icon_type(self, condition: str | None, hour: int = 12) -> str:
+        """Get icon type from weather condition string, with night variants."""
+        is_night = self._is_nighttime(hour)
+
         if not condition:
-            return "sun"
+            return "moon" if is_night else "sun"
+
         condition_lower = condition.lower()
         for key, icon in self.WEATHER_ICONS.items():
             if key in condition_lower:
+                # Convert day icons to night variants
+                if is_night:
+                    if icon == "sun":
+                        return "moon"
+                    elif icon == "partial":
+                        return "partial_moon"
                 return icon
-        return "sun"  # Default
+
+        return "moon" if is_night else "sun"  # Default
 
     def _draw_weather_icon(self, draw, x: int, y: int, icon_type: str, size: int = 20):
         """Draw a weather icon at the specified position."""
@@ -287,6 +301,28 @@ class WaveshareOLED(Display):
                 x2 = cx + int((r + 5) * math.cos(angle))
                 y2 = cy + int((r + 5) * math.sin(angle))
                 draw.line([x1, y1, x2, y2], fill="white", width=1)
+
+        elif icon_type == "moon":
+            # Moon: crescent shape
+            r = size // 3
+            # Draw full circle
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="white")
+            # Cut out a smaller circle offset to the right to create crescent
+            cut_offset = r // 2
+            cut_r = r - 1
+            draw.ellipse([cx - cut_r + cut_offset, cy - cut_r, cx + cut_r + cut_offset, cy + cut_r], fill="black")
+
+        elif icon_type == "partial_moon":
+            # Partial cloud with moon: small moon with cloud
+            r = 4
+            # Draw crescent moon
+            draw.ellipse([x + 12 - r, y + 4 - r + 4, x + 12 + r, y + 4 + r + 4], fill="white")
+            # Cut out for crescent effect
+            draw.ellipse([x + 12 - r + 3, y + 4 - r + 3, x + 12 + r + 3, y + 4 + r + 3], fill="black")
+            # Cloud in front
+            draw.ellipse([x, y + 10, x + 8, y + 18], fill="white")
+            draw.ellipse([x + 5, y + 6, x + 15, y + 16], fill="white")
+            draw.ellipse([x + 10, y + 10, x + 20, y + 18], fill="white")
 
         elif icon_type == "cloud":
             # Cloud: overlapping circles
@@ -729,8 +765,8 @@ class WaveshareOLED(Display):
 
                 # Weather icon and temp - bottom right
                 if data.weather_temp:
-                    # Draw weather icon
-                    icon_type = self._get_weather_icon_type(data.weather_condition)
+                    # Draw weather icon (uses hour to show moon at night)
+                    icon_type = self._get_weather_icon_type(data.weather_condition, data.hour)
                     icon_x = 78
                     icon_size = 18
                     self._draw_weather_icon(draw, icon_x, 38, icon_type, size=icon_size)
