@@ -211,7 +211,7 @@ class WaveshareOLED(Display):
                 if font_path.exists():
                     try:
                         bold_font = bold_path if bold_path.exists() else font_path
-                        self._font_time = ImageFont.truetype(str(bold_font), 28)
+                        self._font_time = ImageFont.truetype(str(bold_font), 26)
                         self._font_medium = ImageFont.truetype(str(font_path), 14)
                         self._font_small = ImageFont.truetype(str(font_path), 11)
                         self._font_tiny = ImageFont.truetype(str(font_path), 9)
