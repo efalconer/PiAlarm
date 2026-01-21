@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Sprites - PiAlarm{% endblock %}
+{% block content %}
+<h1>Sprites</h1>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('new_sprite') }}" class="btn">New Sprite</a>
+</div>
+
+{% if sprites %}
+<ul class="alarm-list">
+    {% for sprite in sprites %}
+    <li class="alarm-item">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <canvas
+                class="sprite-preview"
+                data-pixels="{{ sprite.pixels | tojson }}"
+                width="30"
+                height="30"
+                style="border: 1px solid #333; background: #000;"
+            ></canvas>
+            <div>
+                <div class="alarm-time" style="font-size: 18px;">{{ sprite.name }}</div>
+                <div class="alarm-days">
+                    {% if sprite.time_ranges %}
+                        {% for tr in sprite.time_ranges %}
+                            {{ tr.start }}:00 - {{ tr.end }}:00{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        No time ranges set
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="alarm-actions">
+            <a href="{{ url_for('edit_sprite', sprite_id=sprite.id) }}" class="btn btn-secondary">Edit</a>
+            <form method="POST" action="{{ url_for('delete_sprite', sprite_id=sprite.id) }}" style="margin: 0;">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this sprite?')">Delete</button>
+            </form>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="card">
+    <p>No custom sprites yet. Create one to customize your alarm clock character!</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Render all sprite previews
+    document.querySelectorAll('.sprite-preview').forEach(function(canvas) {
+        const ctx = canvas.getContext('2d');
+        const pixels = JSON.parse(canvas.dataset.pixels);
+
+        ctx.fillStyle = '#fff';
+        pixels.forEach(function(p) {
+            ctx.fillRect(p[0], p[1], 1, 1);
+        });
+    });
+});
+</script>
+{% endblock %}

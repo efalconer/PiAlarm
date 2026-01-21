@@ -4,6 +4,10 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.services.sprite_service import SpriteService
 
 logger = logging.getLogger(__name__)
 
@@ -369,8 +373,28 @@ class WaveshareOLED(Display):
             draw.ellipse([x + 10, y + 17, x + 12, y + 19], fill="white")
             draw.ellipse([x + 16, y + 15, x + 18, y + 17], fill="white")
 
+    def _get_sprite_service(self) -> "SpriteService | None":
+        """Get sprite service lazily to avoid circular imports."""
+        try:
+            from src.services.sprite_service import get_sprite_service
+            return get_sprite_service()
+        except Exception as e:
+            logger.debug(f"Could not load sprite service: {e}")
+            return None
+
     def _get_dog_activity(self, hour: int) -> str:
-        """Get dog activity based on hour of day."""
+        """Get dog activity based on hour of day.
+
+        First checks for custom sprites, then falls back to hardcoded activities.
+        """
+        # Try custom sprites first
+        sprite_service = self._get_sprite_service()
+        if sprite_service:
+            active_sprite = sprite_service.get_active_sprite(hour)
+            if active_sprite:
+                return f"custom:{active_sprite.id}"
+
+        # Fall back to hardcoded activities
         if hour >= 20 or hour < 6:
             return "sleeping"
         elif 6 <= hour < 8:
@@ -386,11 +410,8 @@ class WaveshareOLED(Display):
         else:  # 18 <= hour < 20
             return "gaming"
 
-    def _draw_dog(self, draw, x: int, y: int, activity: str):
-        """Draw a 30x30 pixel dog based on activity."""
-        # Each dog is defined as a list of (dx, dy) pixel coordinates to fill
-        # Using 2x2 blocks for main features for better visibility
-
+    def _get_hardcoded_sprite(self, activity: str) -> list[tuple[int, int]]:
+        """Get hardcoded sprite pixel coordinates for a given activity."""
         if activity == "sleeping":
             # Sleeping dog - curled up with Zzz
             pixels = [
@@ -648,6 +669,31 @@ class WaveshareOLED(Display):
                 (20, 7), (28, 7),
                 *[(i, 8) for i in range(20, 29)],
             ]
+
+        return pixels
+
+    def _draw_dog(self, draw, x: int, y: int, activity: str):
+        """Draw a 30x30 pixel dog based on activity.
+
+        Checks for custom sprites first, then falls back to hardcoded sprites.
+        """
+        pixels = []
+
+        # Check if this is a custom sprite
+        if activity.startswith("custom:"):
+            sprite_id = activity[7:]  # Remove "custom:" prefix
+            sprite_service = self._get_sprite_service()
+            if sprite_service:
+                custom_pixels = sprite_service.get_sprite_pixels(sprite_id)
+                if custom_pixels:
+                    pixels = custom_pixels
+
+        # Fall back to hardcoded sprites if no custom pixels
+        if not pixels:
+            # Strip custom prefix if present (in case sprite loading failed)
+            if activity.startswith("custom:"):
+                activity = "gaming"  # Default fallback activity
+            pixels = self._get_hardcoded_sprite(activity)
 
         # Draw all pixels
         for dx, dy in pixels:

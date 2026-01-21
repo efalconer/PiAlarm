@@ -164,6 +164,7 @@
             <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a>
             <a href="{{ url_for('list_alarms') }}" class="{% if request.endpoint in ['list_alarms', 'new_alarm', 'edit_alarm'] %}active{% endif %}">Alarms</a>
             <a href="{{ url_for('music') }}" class="{% if request.endpoint in ['music', 'new_playlist', 'edit_playlist'] %}active{% endif %}">Music</a>
+            <a href="{{ url_for('list_sprites') }}" class="{% if request.endpoint in ['list_sprites', 'new_sprite', 'edit_sprite'] %}active{% endif %}">Sprites</a>
             <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}">Settings</a>
         </nav>
         {% block content %}{% endblock %}

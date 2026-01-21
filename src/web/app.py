@@ -1,5 +1,6 @@
 """Flask web application for PiAlarm configuration."""
 
+import json
 import logging
 import os
 from werkzeug.utils import secure_filename
@@ -11,6 +12,7 @@ from src.services.audio_service import get_audio_service
 from src.services.weather_service import get_weather_service
 from src.services.time_service import get_time_service
 from src.services.playlist_service import get_playlist_service, Playlist
+from src.services.sprite_service import get_sprite_service, Sprite, TimeRange
 from src.hardware.buttons import get_button_handler, Button
 
 logger = logging.getLogger(__name__)
@@ -295,6 +297,105 @@ def settings():
         return redirect(url_for("settings"))
 
     return render_template("settings.html", config=config)
+
+
+@app.route("/sprites")
+def list_sprites():
+    """List all sprites."""
+    sprite_service = get_sprite_service()
+    return render_template("sprites.html", sprites=sprite_service.get_all())
+
+
+@app.route("/sprites/new", methods=["GET", "POST"])
+def new_sprite():
+    """Create a new sprite."""
+    if request.method == "POST":
+        sprite_service = get_sprite_service()
+
+        # Parse pixels from JSON string
+        pixels_json = request.form.get("pixels", "[]")
+        try:
+            pixels_list = json.loads(pixels_json)
+            pixels = [tuple(p) for p in pixels_list]
+        except json.JSONDecodeError:
+            pixels = []
+
+        # Parse time ranges from JSON string
+        time_ranges_json = request.form.get("time_ranges", "[]")
+        try:
+            time_ranges_list = json.loads(time_ranges_json)
+            time_ranges = [TimeRange(tr["start"], tr["end"]) for tr in time_ranges_list]
+        except (json.JSONDecodeError, KeyError):
+            time_ranges = []
+
+        sprite = Sprite(
+            id="",  # Will be generated
+            name=request.form.get("name", "New Sprite"),
+            pixels=pixels,
+            time_ranges=time_ranges,
+        )
+        sprite_service.create(sprite)
+        return redirect(url_for("list_sprites"))
+
+    return render_template("sprite_editor.html", sprite=None)
+
+
+@app.route("/sprites/<sprite_id>/edit", methods=["GET", "POST"])
+def edit_sprite(sprite_id: str):
+    """Edit an existing sprite."""
+    sprite_service = get_sprite_service()
+    sprite = sprite_service.get_by_id(sprite_id)
+
+    if not sprite:
+        return redirect(url_for("list_sprites"))
+
+    if request.method == "POST":
+        # Parse pixels from JSON string
+        pixels_json = request.form.get("pixels", "[]")
+        try:
+            pixels_list = json.loads(pixels_json)
+            pixels = [tuple(p) for p in pixels_list]
+        except json.JSONDecodeError:
+            pixels = sprite.pixels
+
+        # Parse time ranges from JSON string
+        time_ranges_json = request.form.get("time_ranges", "[]")
+        try:
+            time_ranges_list = json.loads(time_ranges_json)
+            time_ranges = [TimeRange(tr["start"], tr["end"]) for tr in time_ranges_list]
+        except (json.JSONDecodeError, KeyError):
+            time_ranges = sprite.time_ranges
+
+        sprite.name = request.form.get("name", sprite.name)
+        sprite.pixels = pixels
+        sprite.time_ranges = time_ranges
+        sprite_service.update(sprite)
+        return redirect(url_for("list_sprites"))
+
+    return render_template("sprite_editor.html", sprite=sprite)
+
+
+@app.route("/sprites/<sprite_id>/delete", methods=["POST"])
+def delete_sprite(sprite_id: str):
+    """Delete a sprite."""
+    sprite_service = get_sprite_service()
+    sprite_service.delete(sprite_id)
+    return redirect(url_for("list_sprites"))
+
+
+@app.route("/api/sprites/<sprite_id>")
+def api_sprite(sprite_id: str):
+    """Get sprite data as JSON."""
+    sprite_service = get_sprite_service()
+    sprite = sprite_service.get_by_id(sprite_id)
+    if sprite:
+        return jsonify({
+            "id": sprite.id,
+            "name": sprite.name,
+            "pixels": [[x, y] for x, y in sprite.pixels],
+            "time_ranges": [tr.to_dict() for tr in sprite.time_ranges],
+        })
+    return jsonify({"error": "Sprite not found"}), 404
 
 
 @app.route("/api/status")

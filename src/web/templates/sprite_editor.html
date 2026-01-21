@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if sprite else 'New' }} Sprite - PiAlarm{% endblock %}
+{% block content %}
+<h1>{{ 'Edit' if sprite else 'New' }} Sprite</h1>
+
+<form method="POST" id="sprite-form">
+    <div class="card">
+        <div class="form-group">
+            <label for="name">Sprite Name</label>
+            <input type="text" id="name" name="name" value="{{ sprite.name if sprite else '' }}" placeholder="e.g., Reading" required>
+        </div>
+    </div>
+
+    <div class="card">
+        <label>Pixel Editor (30x30)</label>
+        <p style="color: #888; font-size: 12px; margin-bottom: 10px;">Click or drag to draw/erase pixels. First click sets draw or erase mode.</p>
+
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;">
+            <!-- Main editor canvas -->
+            <div>
+                <canvas
+                    id="editor-canvas"
+                    width="300"
+                    height="300"
+                    style="border: 1px solid #333; cursor: crosshair; touch-action: none;"
+                ></canvas>
+            </div>
+
+            <!-- Preview and tools -->
+            <div>
+                <label style="margin-bottom: 10px; display: block;">Actual Size Preview</label>
+                <canvas
+                    id="preview-canvas"
+                    width="30"
+                    height="30"
+                    style="border: 1px solid #333; background: #000; margin-bottom: 15px;"
+                ></canvas>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" onclick="clearCanvas()">Clear</button>
+                    <button type="button" class="btn btn-secondary" onclick="invertCanvas()">Invert</button>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px;">
+                        <div></div>
+                        <button type="button" class="btn btn-secondary" onclick="shiftPixels(0, -1)" title="Shift Up">^</button>
+                        <div></div>
+                        <button type="button" class="btn btn-secondary" onclick="shiftPixels(-1, 0)" title="Shift Left">&lt;</button>
+                        <button type="button" class="btn btn-secondary" onclick="shiftPixels(0, 1)" title="Shift Down">v</button>
+                        <button type="button" class="btn btn-secondary" onclick="shiftPixels(1, 0)" title="Shift Right">&gt;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <label>Time Ranges</label>
+        <p style="color: #888; font-size: 12px; margin-bottom: 10px;">When should this sprite be shown? Add multiple ranges for midnight-crossing schedules.</p>
+
+        <div id="time-ranges-container">
+            <!-- Time ranges will be added here dynamically -->
+        </div>
+
+        <button type="button" class="btn btn-secondary" onclick="addTimeRange()" style="margin-top: 10px;">Add Time Range</button>
+    </div>
+
+    <!-- Hidden form fields for JSON data -->
+    <input type="hidden" id="pixels" name="pixels" value="[]">
+    <input type="hidden" id="time_ranges" name="time_ranges" value="[]">
+
+    <div style="display: flex; gap: 10px;">
+        <button type="submit" class="btn">Save Sprite</button>
+        <a href="{{ url_for('list_sprites') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GRID_SIZE = 30;
+const CELL_SIZE = 10;
+
+// Grid state: 2D array of booleans
+let grid = [];
+for (let y = 0; y < GRID_SIZE; y++) {
+    grid[y] = [];
+    for (let x = 0; x < GRID_SIZE; x++) {
+        grid[y][x] = false;
+    }
+}
+
+// Time ranges array
+let timeRanges = [];
+
+// Drawing state
+let isDrawing = false;
+let drawMode = true; // true = draw, false = erase
+
+// Canvas elements
+const editorCanvas = document.getElementById('editor-canvas');
+const editorCtx = editorCanvas.getContext('2d');
+const previewCanvas = document.getElementById('preview-canvas');
+const previewCtx = previewCanvas.getContext('2d');
+
+// Initialize with existing sprite data if editing
+{% if sprite %}
+const existingPixels = {{ sprite.pixels | tojson }};
+existingPixels.forEach(function(p) {
+    if (p[0] >= 0 && p[0] < GRID_SIZE && p[1] >= 0 && p[1] < GRID_SIZE) {
+        grid[p[1]][p[0]] = true;
+    }
+});
+
+const existingTimeRanges = {{ sprite.time_ranges | map(attribute='to_dict') | list | tojson }};
+existingTimeRanges.forEach(function(tr) {
+    addTimeRange(tr.start, tr.end);
+});
+{% endif %}
+
+// Rendering functions
+function renderEditor() {
+    editorCtx.fillStyle = '#000';
+    editorCtx.fillRect(0, 0, editorCanvas.width, editorCanvas.height);
+
+    // Draw grid lines
+    editorCtx.strokeStyle = '#333';
+    editorCtx.lineWidth = 1;
+    for (let i = 0; i <= GRID_SIZE; i++) {
+        editorCtx.beginPath();
+        editorCtx.moveTo(i * CELL_SIZE, 0);
+        editorCtx.lineTo(i * CELL_SIZE, editorCanvas.height);
+        editorCtx.stroke();
+        editorCtx.beginPath();
+        editorCtx.moveTo(0, i * CELL_SIZE);
+        editorCtx.lineTo(editorCanvas.width, i * CELL_SIZE);
+        editorCtx.stroke();
+    }
+
+    // Draw filled pixels
+    editorCtx.fillStyle = '#fff';
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            if (grid[y][x]) {
+                editorCtx.fillRect(x * CELL_SIZE + 1, y * CELL_SIZE + 1, CELL_SIZE - 1, CELL_SIZE - 1);
+            }
+        }
+    }
+}
+
+function renderPreview() {
+    previewCtx.fillStyle = '#000';
+    previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+    previewCtx.fillStyle = '#fff';
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            if (grid[y][x]) {
+                previewCtx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+}
+
+function render() {
+    renderEditor();
+    renderPreview();
+    updateHiddenFields();
+}
+
+// Get grid coordinates from canvas event
+function getGridCoords(e) {
+    const rect = editorCanvas.getBoundingClientRect();
+    let clientX, clientY;
+
+    if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
+
+    const x = Math.floor((clientX - rect.left) / CELL_SIZE);
+    const y = Math.floor((clientY - rect.top) / CELL_SIZE);
+
+    return { x: Math.max(0, Math.min(GRID_SIZE - 1, x)), y: Math.max(0, Math.min(GRID_SIZE - 1, y)) };
+}
+
+// Mouse/touch event handlers
+function startDrawing(e) {
+    e.preventDefault();
+    isDrawing = true;
+    const coords = getGridCoords(e);
+
+    // Set draw mode based on current state of the clicked cell
+    drawMode = !grid[coords.y][coords.x];
+    grid[coords.y][coords.x] = drawMode;
+    render();
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+    e.preventDefault();
+
+    const coords = getGridCoords(e);
+    grid[coords.y][coords.x] = drawMode;
+    render();
+}
+
+function stopDrawing(e) {
+    if (e) e.preventDefault();
+    isDrawing = false;
+}
+
+// Mouse events
+editorCanvas.addEventListener('mousedown', startDrawing);
+editorCanvas.addEventListener('mousemove', draw);
+editorCanvas.addEventListener('mouseup', stopDrawing);
+editorCanvas.addEventListener('mouseleave', stopDrawing);
+
+// Touch events
+editorCanvas.addEventListener('touchstart', startDrawing);
+editorCanvas.addEventListener('touchmove', draw);
+editorCanvas.addEventListener('touchend', stopDrawing);
+editorCanvas.addEventListener('touchcancel', stopDrawing);
+
+// Tool functions
+function clearCanvas() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            grid[y][x] = false;
+        }
+    }
+    render();
+}
+
+function invertCanvas() {
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            grid[y][x] = !grid[y][x];
+        }
+    }
+    render();
+}
+
+function shiftPixels(dx, dy) {
+    const newGrid = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+        newGrid[y] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const srcX = x - dx;
+            const srcY = y - dy;
+            if (srcX >= 0 && srcX < GRID_SIZE && srcY >= 0 && srcY < GRID_SIZE) {
+                newGrid[y][x] = grid[srcY][srcX];
+            } else {
+                newGrid[y][x] = false;
+            }
+        }
+    }
+    grid = newGrid;
+    render();
+}
+
+// Time range functions
+function addTimeRange(start, end) {
+    const container = document.getElementById('time-ranges-container');
+    const index = timeRanges.length;
+
+    const rangeDiv = document.createElement('div');
+    rangeDiv.className = 'time-range-item';
+    rangeDiv.style.cssText = 'display: flex; gap: 10px; align-items: center; margin-bottom: 10px; padding: 10px; background: #0f0f23; border-radius: 6px;';
+    rangeDiv.innerHTML = `
+        <label style="margin: 0;">From</label>
+        <select class="time-range-start" style="width: auto;">
+            ${generateHourOptions(start !== undefined ? start : 8)}
+        </select>
+        <label style="margin: 0;">to</label>
+        <select class="time-range-end" style="width: auto;">
+            ${generateHourOptions(end !== undefined ? end : 12, true)}
+        </select>
+        <button type="button" class="btn btn-danger" onclick="removeTimeRange(this)" style="padding: 5px 10px;">X</button>
+    `;
+
+    container.appendChild(rangeDiv);
+
+    // Update time ranges array
+    timeRanges.push({ start: start !== undefined ? start : 8, end: end !== undefined ? end : 12 });
+    updateHiddenFields();
+
+    // Add change listeners
+    const startSelect = rangeDiv.querySelector('.time-range-start');
+    const endSelect = rangeDiv.querySelector('.time-range-end');
+
+    startSelect.addEventListener('change', updateTimeRangesFromUI);
+    endSelect.addEventListener('change', updateTimeRangesFromUI);
+}
+
+function generateHourOptions(selected, includeEnd) {
+    let options = '';
+    const max = includeEnd ? 24 : 23;
+    for (let h = 0; h <= max; h++) {
+        const label = h === 24 ? '24:00 (midnight)' : `${h.toString().padStart(2, '0')}:00`;
+        options += `<option value="${h}" ${h === selected ? 'selected' : ''}>${label}</option>`;
+    }
+    return options;
+}
+
+function removeTimeRange(button) {
+    const rangeDiv = button.parentElement;
+    const container = document.getElementById('time-ranges-container');
+    const index = Array.from(container.children).indexOf(rangeDiv);
+
+    rangeDiv.remove();
+    timeRanges.splice(index, 1);
+    updateHiddenFields();
+}
+
+function updateTimeRangesFromUI() {
+    const container = document.getElementById('time-ranges-container');
+    const items = container.querySelectorAll('.time-range-item');
+
+    timeRanges = [];
+    items.forEach(function(item) {
+        const start = parseInt(item.querySelector('.time-range-start').value);
+        const end = parseInt(item.querySelector('.time-range-end').value);
+        timeRanges.push({ start, end });
+    });
+
+    updateHiddenFields();
+}
+
+// Update hidden form fields
+function updateHiddenFields() {
+    // Convert grid to pixel coordinates array
+    const pixels = [];
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            if (grid[y][x]) {
+                pixels.push([x, y]);
+            }
+        }
+    }
+
+    document.getElementById('pixels').value = JSON.stringify(pixels);
+    document.getElementById('time_ranges').value = JSON.stringify(timeRanges);
+}
+
+// Initial render
+render();
+
+// If no existing time ranges, don't add any by default
+{% if not sprite %}
+// New sprite - no default time ranges
+{% endif %}
+</script>
+
+<style>
+.time-range-item select {
+    width: auto;
+    min-width: 120px;
+}
+</style>
+{% endblock %}
