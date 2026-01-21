@@ -385,16 +385,16 @@ class WaveshareOLED(Display):
     def _get_dog_activity(self, hour: int) -> str:
         """Get dog activity based on hour of day.
 
-        First checks for custom sprites, then falls back to hardcoded activities.
+        Uses sprite service for all sprites (default and custom).
+        Falls back to hardcoded activity names only if sprite service fails.
         """
-        # Try custom sprites first
         sprite_service = self._get_sprite_service()
         if sprite_service:
             active_sprite = sprite_service.get_active_sprite(hour)
             if active_sprite:
-                return f"custom:{active_sprite.id}"
+                return active_sprite.id
 
-        # Fall back to hardcoded activities
+        # Fall back to hardcoded activity names if sprite service unavailable
         if hour >= 20 or hour < 6:
             return "sleeping"
         elif 6 <= hour < 8:
@@ -675,24 +675,19 @@ class WaveshareOLED(Display):
     def _draw_dog(self, draw, x: int, y: int, activity: str):
         """Draw a 30x30 pixel dog based on activity.
 
-        Checks for custom sprites first, then falls back to hardcoded sprites.
+        Uses sprite service for all sprites, falls back to hardcoded only if unavailable.
         """
         pixels = []
 
-        # Check if this is a custom sprite
-        if activity.startswith("custom:"):
-            sprite_id = activity[7:]  # Remove "custom:" prefix
-            sprite_service = self._get_sprite_service()
-            if sprite_service:
-                custom_pixels = sprite_service.get_sprite_pixels(sprite_id)
-                if custom_pixels:
-                    pixels = custom_pixels
+        # Try to get pixels from sprite service (handles both default and custom)
+        sprite_service = self._get_sprite_service()
+        if sprite_service:
+            sprite_pixels = sprite_service.get_sprite_pixels(activity)
+            if sprite_pixels:
+                pixels = sprite_pixels
 
-        # Fall back to hardcoded sprites if no custom pixels
+        # Fall back to hardcoded sprites if sprite service unavailable
         if not pixels:
-            # Strip custom prefix if present (in case sprite loading failed)
-            if activity.startswith("custom:"):
-                activity = "gaming"  # Default fallback activity
             pixels = self._get_hardcoded_sprite(activity)
 
         # Draw all pixels
