@@ -27,6 +27,7 @@ class DisplayData:
     weather_condition: str | None = None
     alarm_active: bool = False
     alarm_label: str | None = None
+    alarm_display_text: str = "Wake up Claire!"
     forecast: list[dict] | None = None
     has_unread_messages: bool = False
 
@@ -117,8 +118,7 @@ class ConsoleDisplay(Display):
         print("----------------")
 
     def show_alarm_active(self, label: str | None = None) -> None:
-        alarm_text = " [Wake up Claire!]"
-        print(alarm_text, end="", flush=True)
+        print(f" [{label or 'Wake up Claire!'}]", end="", flush=True)
 
     def clear_alarm_active(self) -> None:
         pass  # Will be cleared on next update
@@ -791,7 +791,7 @@ class WaveshareOLED(Display):
 
         with canvas(self._device) as draw:
             if data.alarm_active:
-                # Alarm mode - "Wake up Claire!" flashing black/white
+                # Alarm mode - custom text flashing black/white
                 self._alarm_blink_state = not self._alarm_blink_state
 
                 if self._alarm_blink_state:
@@ -805,15 +805,28 @@ class WaveshareOLED(Display):
 
                 draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
 
-                # Draw "Wake up" on first line, "Claire!" on second - centered
-                text1 = "Wake up"
-                text2 = "Claire!"
+                # Split display text into two lines for better display
+                display_text = data.alarm_display_text or "Wake up Claire!"
+                words = display_text.split()
+                if len(words) >= 2:
+                    # Split roughly in half
+                    mid = len(words) // 2
+                    text1 = " ".join(words[:mid])
+                    text2 = " ".join(words[mid:])
+                else:
+                    text1 = display_text
+                    text2 = ""
+
                 bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
-                bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
                 x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
-                x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
-                draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
-                draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
+                if text2:
+                    bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
+                    x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
+                    draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
+                    draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
+                else:
+                    # Single line, center vertically
+                    draw.text((x1, 24), text1, font=self._font_alarm, fill=text_color)
             else:
                 # Normal mode - time, date, weather, dog
                 # Time - large, centered, takes up top portion

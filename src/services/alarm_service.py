@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 DB_PATH = DATA_DIR / "alarms.db"
 
 
+DEFAULT_DISPLAY_TEXT = "Wake up Claire!"
+
+
 @dataclass
 class Alarm:
     """Represents an alarm."""
@@ -27,6 +30,7 @@ class Alarm:
     enabled: bool
     sound_file: str
     label: str = ""
+    display_text: str = DEFAULT_DISPLAY_TEXT
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -38,6 +42,7 @@ class Alarm:
             "enabled": self.enabled,
             "sound_file": self.sound_file,
             "label": self.label,
+            "display_text": self.display_text,
             "time_display": f"{self.hour:02d}:{self.minute:02d}",
         }
 
@@ -66,9 +71,16 @@ class AlarmService:
                     days TEXT NOT NULL,
                     enabled INTEGER NOT NULL DEFAULT 1,
                     sound_file TEXT NOT NULL,
-                    label TEXT DEFAULT ''
+                    label TEXT DEFAULT '',
+                    display_text TEXT DEFAULT 'Wake up Claire!'
                 )
             """)
+            # Migration: add display_text column if it doesn't exist
+            cursor = conn.execute("PRAGMA table_info(alarms)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "display_text" not in columns:
+                conn.execute(f"ALTER TABLE alarms ADD COLUMN display_text TEXT DEFAULT '{DEFAULT_DISPLAY_TEXT}'")
+                logger.info("Migrated alarms table: added display_text column")
             conn.commit()
 
     def _row_to_alarm(self, row: tuple) -> Alarm:
@@ -81,13 +93,14 @@ class AlarmService:
             enabled=bool(row[4]),
             sound_file=row[5],
             label=row[6] or "",
+            display_text=row[7] if len(row) > 7 and row[7] else DEFAULT_DISPLAY_TEXT,
         )
 
     def get_all(self) -> list[Alarm]:
         """Get all alarms."""
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.execute(
-                "SELECT id, hour, minute, days, enabled, sound_file, label FROM alarms ORDER BY hour, minute"
+                "SELECT id, hour, minute, days, enabled, sound_file, label, display_text FROM alarms ORDER BY hour, minute"
             )
             return [self._row_to_alarm(row) for row in cursor.fetchall()]
 
@@ -95,7 +108,7 @@ class AlarmService:
         """Get alarm by ID."""
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.execute(
-                "SELECT id, hour, minute, days, enabled, sound_file, label FROM alarms WHERE id = ?",
+                "SELECT id, hour, minute, days, enabled, sound_file, label, display_text FROM alarms WHERE id = ?",
                 (alarm_id,),
             )
             row = cursor.fetchone()
@@ -106,8 +119,8 @@ class AlarmService:
         days_str = ",".join(str(d) for d in alarm.days)
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.execute(
-                "INSERT INTO alarms (hour, minute, days, enabled, sound_file, label) VALUES (?, ?, ?, ?, ?, ?)",
-                (alarm.hour, alarm.minute, days_str, int(alarm.enabled), alarm.sound_file, alarm.label),
+                "INSERT INTO alarms (hour, minute, days, enabled, sound_file, label, display_text) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (alarm.hour, alarm.minute, days_str, int(alarm.enabled), alarm.sound_file, alarm.label, alarm.display_text),
             )
             conn.commit()
             alarm.id = cursor.lastrowid
@@ -121,8 +134,8 @@ class AlarmService:
         days_str = ",".join(str(d) for d in alarm.days)
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
-                "UPDATE alarms SET hour=?, minute=?, days=?, enabled=?, sound_file=?, label=? WHERE id=?",
-                (alarm.hour, alarm.minute, days_str, int(alarm.enabled), alarm.sound_file, alarm.label, alarm.id),
+                "UPDATE alarms SET hour=?, minute=?, days=?, enabled=?, sound_file=?, label=?, display_text=? WHERE id=?",
+                (alarm.hour, alarm.minute, days_str, int(alarm.enabled), alarm.sound_file, alarm.label, alarm.display_text, alarm.id),
             )
             conn.commit()
         logger.info(f"Updated alarm: {alarm.id}")

@@ -20,6 +20,13 @@
         </div>
 
         <div class="form-group">
+            <label for="display_text">Display Text</label>
+            <input type="text" id="display_text" name="display_text"
+                   value="{{ alarm.display_text if alarm else 'Wake up Claire!' }}" placeholder="Wake up Claire!">
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">Text shown on display when alarm triggers</p>
+        </div>
+
+        <div class="form-group">
             <label>Repeat on</label>
             <div class="checkbox-group">
                 {% set days = [('0', 'Mon'), ('1', 'Tue'), ('2', 'Wed'), ('3', 'Thu'), ('4', 'Fri'), ('5', 'Sat'), ('6', 'Sun')] %}

@@ -160,6 +160,7 @@ class PiAlarm:
         time_data = self.time_service.get_display_data()
         weather_data = self.weather_service.get_display_data()
 
+        active_alarm = self.alarm_service.active_alarm
         data = DisplayData(
             time=time_data["time"],
             date=time_data["date"],
@@ -168,7 +169,8 @@ class PiAlarm:
             weather_temp=weather_data["temp"] if weather_data else None,
             weather_condition=weather_data["condition"] if weather_data else None,
             alarm_active=self.alarm_service.is_alarm_active,
-            alarm_label=self.alarm_service.active_alarm.label if self.alarm_service.active_alarm else None,
+            alarm_label=active_alarm.label if active_alarm else None,
+            alarm_display_text=active_alarm.display_text if active_alarm else "Wake up Claire!",
             has_unread_messages=self.message_service.has_unread(),
         )
         self.display.update(data)

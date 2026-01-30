@@ -64,6 +64,7 @@ def new_alarm():
             enabled=True,
             sound_file=request.form.get("sound", sounds[0] if sounds else ""),
             label=request.form.get("label", ""),
+            display_text=request.form.get("display_text", "Wake up Claire!"),
         )
         alarm_service.create(alarm)
         return redirect(url_for("list_alarms"))
@@ -91,6 +92,7 @@ def edit_alarm(alarm_id: int):
         alarm.days = [int(d) for d in days]
         alarm.sound_file = request.form.get("sound", alarm.sound_file)
         alarm.label = request.form.get("label", "")
+        alarm.display_text = request.form.get("display_text", alarm.display_text)
         alarm_service.update(alarm)
         return redirect(url_for("list_alarms"))
 
