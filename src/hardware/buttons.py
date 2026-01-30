@@ -6,13 +6,14 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# Try to import RPi.GPIO, fall back to mock for development
+# Try to import gpiozero, fall back to mock for development
 try:
-    import RPi.GPIO as GPIO
+    from gpiozero import Button as GPIOButton
+    from gpiozero.exc import BadPinFactory
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO_AVAILABLE = False
-    logger.warning("RPi.GPIO not available - buttons will be simulated")
+    logger.warning("gpiozero not available - buttons will be simulated")
 
 
 class Button(Enum):
@@ -29,6 +30,7 @@ class ButtonHandler:
 
     def __init__(self):
         self._callbacks: dict[Button, Callable[[], None]] = {}
+        self._buttons: dict[Button, "GPIOButton"] = {}
         self._initialized = False
 
     def initialize(self) -> bool:
@@ -39,20 +41,21 @@ class ButtonHandler:
             return True
 
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-
             for button in Button:
-                GPIO.setup(button.value, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                GPIO.add_event_detect(
+                gpio_button = GPIOButton(
                     button.value,
-                    GPIO.FALLING,
-                    callback=lambda channel, b=button: self._handle_press(b),
-                    bouncetime=300,
+                    pull_up=True,
+                    bounce_time=0.3,
                 )
+                gpio_button.when_pressed = lambda b=button: self._handle_press(b)
+                self._buttons[button] = gpio_button
 
             self._initialized = True
             logger.info("Button handler initialized")
+            return True
+        except BadPinFactory as e:
+            logger.info("Button handler running in simulation mode (no GPIO available)")
+            self._initialized = True
             return True
         except Exception as e:
             logger.error(f"Failed to initialize buttons: {e}")
@@ -60,8 +63,10 @@ class ButtonHandler:
 
     def shutdown(self) -> None:
         """Clean up GPIO resources."""
-        if GPIO_AVAILABLE and self._initialized:
-            GPIO.cleanup()
+        if self._buttons:
+            for gpio_button in self._buttons.values():
+                gpio_button.close()
+            self._buttons.clear()
             logger.info("Button handler shutdown")
         self._initialized = False
 
