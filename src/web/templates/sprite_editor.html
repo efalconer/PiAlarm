@@ -48,6 +48,19 @@
                         <button type="button" class="btn btn-secondary" onclick="shiftPixels(1, 0)" title="Shift Right">&gt;</button>
                     </div>
                 </div>
+
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #333;">
+                    <label style="margin-bottom: 10px; display: block;">Import Image</label>
+                    <input type="file" id="image-import" accept="image/png,image/gif,image/jpeg,image/webp" style="margin-bottom: 10px; width: 100%;">
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 12px; display: block; margin-bottom: 5px;">Threshold: <span id="threshold-value">128</span></label>
+                        <input type="range" id="threshold-slider" min="1" max="255" value="128" style="width: 100%;">
+                    </div>
+                    <label style="font-size: 12px; display: flex; align-items: center; gap: 5px; margin-bottom: 10px;">
+                        <input type="checkbox" id="invert-import"> Invert colors
+                    </label>
+                    <button type="button" class="btn btn-secondary" onclick="importImage()" style="width: 100%;">Import</button>
+                </div>
             </div>
         </div>
     </div>
@@ -258,6 +271,106 @@ function shiftPixels(dx, dy) {
     }
     grid = newGrid;
     render();
+}
+
+// Image import functions
+const thresholdSlider = document.getElementById('threshold-slider');
+const thresholdValue = document.getElementById('threshold-value');
+let pendingImageData = null;
+
+thresholdSlider.addEventListener('input', function() {
+    thresholdValue.textContent = this.value;
+    if (pendingImageData) {
+        applyThreshold(pendingImageData, parseInt(this.value), document.getElementById('invert-import').checked);
+    }
+});
+
+document.getElementById('invert-import').addEventListener('change', function() {
+    if (pendingImageData) {
+        applyThreshold(pendingImageData, parseInt(thresholdSlider.value), this.checked);
+    }
+});
+
+document.getElementById('image-import').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        loadImageFile(file);
+    }
+});
+
+function loadImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Create a hidden canvas to scale the image to 30x30
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = GRID_SIZE;
+            tempCanvas.height = GRID_SIZE;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Fill with white background (for transparency handling)
+            tempCtx.fillStyle = '#fff';
+            tempCtx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+
+            // Draw image scaled to 30x30, maintaining aspect ratio and centering
+            const scale = Math.min(GRID_SIZE / img.width, GRID_SIZE / img.height);
+            const scaledWidth = img.width * scale;
+            const scaledHeight = img.height * scale;
+            const offsetX = (GRID_SIZE - scaledWidth) / 2;
+            const offsetY = (GRID_SIZE - scaledHeight) / 2;
+
+            tempCtx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+
+            // Get image data for threshold processing
+            pendingImageData = tempCtx.getImageData(0, 0, GRID_SIZE, GRID_SIZE);
+
+            // Apply current threshold
+            applyThreshold(pendingImageData, parseInt(thresholdSlider.value), document.getElementById('invert-import').checked);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function applyThreshold(imageData, threshold, invert) {
+    const data = imageData.data;
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            const i = (y * GRID_SIZE + x) * 4;
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+
+            // Calculate brightness (luminance formula)
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+
+            // If mostly transparent, treat as off
+            if (a < 128) {
+                grid[y][x] = invert ? true : false;
+            } else {
+                // Darker pixels = on (below threshold), brighter = off
+                const isOn = brightness < threshold;
+                grid[y][x] = invert ? !isOn : isOn;
+            }
+        }
+    }
+
+    render();
+}
+
+function importImage() {
+    const fileInput = document.getElementById('image-import');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert('Please select an image file first.');
+        return;
+    }
+
+    loadImageFile(file);
 }
 
 // Time range functions
