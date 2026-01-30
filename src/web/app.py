@@ -3,10 +3,11 @@
 import json
 import logging
 import os
+import secrets
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 
-from src.config import get_config, MUSIC_DIR
+from src.config import get_config, MUSIC_DIR, CONFIG_DIR
 from src.services.alarm_service import get_alarm_service, Alarm
 from src.services.audio_service import get_audio_service
 from src.services.weather_service import get_weather_service
@@ -20,6 +21,67 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
+
+# Generate or load a persistent secret key for sessions
+SECRET_KEY_FILE = CONFIG_DIR / ".secret_key"
+if SECRET_KEY_FILE.exists():
+    app.secret_key = SECRET_KEY_FILE.read_text().strip()
+else:
+    app.secret_key = secrets.token_hex(32)
+    SECRET_KEY_FILE.write_text(app.secret_key)
+
+
+@app.before_request
+def check_authentication():
+    """Check if user is authenticated when PIN is configured."""
+    config = get_config()
+
+    # Skip auth check if no PIN is set
+    if not config.web_pin:
+        return None
+
+    # Allow access to login page and static files
+    if request.endpoint in ('login', 'static'):
+        return None
+
+    # Check if authenticated
+    if not session.get('authenticated'):
+        return redirect(url_for('login'))
+
+    return None
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Login page for PIN authentication."""
+    config = get_config()
+    error = None
+
+    # If no PIN is set, redirect to home
+    if not config.web_pin:
+        return redirect(url_for('index'))
+
+    # Already authenticated
+    if session.get('authenticated'):
+        return redirect(url_for('index'))
+
+    if request.method == "POST":
+        pin = request.form.get("pin", "")
+        if pin == config.web_pin:
+            session['authenticated'] = True
+            session.permanent = True  # Remember for 31 days by default
+            return redirect(url_for('index'))
+        else:
+            error = "Incorrect PIN"
+
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    """Log out and clear session."""
+    session.clear()
+    return redirect(url_for('login'))
 
 
 @app.route("/")
@@ -296,6 +358,7 @@ def settings():
             "timezone": request.form.get("timezone", "America/Los_Angeles"),
             "snooze_duration_minutes": int(request.form.get("snooze_duration", 9)),
             "time_format_24h": request.form.get("time_format_24h") == "on",
+            "web_pin": request.form.get("web_pin", ""),
         })
         return redirect(url_for("settings"))
 

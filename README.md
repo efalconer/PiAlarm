@@ -19,7 +19,9 @@ A Raspberry Pi-based alarm clock with weather display and web configuration.
 - Snooze and dismiss via physical buttons or web interface
 - Message display system with envelope notification icon
 - Custom pixel art sprites for different times of day
+- Custom alarm display text (default: "Wake up Claire!")
 - Web-based configuration and alarm management
+- Optional PIN protection for web interface
 
 ## Setup
 
@@ -107,6 +109,24 @@ The web interface is available at `http://<pi-ip>:5000`
 - **Messages** - Send messages to the display (shows envelope icon when unread)
 - **Sprites** - Create custom pixel art for different times of day
 - **Settings** - Configure weather API, timezone, snooze duration, and time format
+
+## PIN Protection
+
+The web interface can be protected with a numeric PIN. When enabled, users must enter the PIN to access any page.
+
+To enable PIN protection:
+1. Go to **Settings** in the web interface
+2. Enter a numeric PIN in the "Web Interface PIN" field
+3. Save settings
+
+Or edit `config.json`:
+```json
+{
+  "web_pin": "1234"
+}
+```
+
+Leave `web_pin` empty to disable protection.
 
 ## Auto-Start on Boot
 

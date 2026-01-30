@@ -13,6 +13,7 @@ DEFAULT_CONFIG = {
     "display_brightness": 100,
     "time_format_24h": False,
     "web_port": 5000,
+    "web_pin": "",  # Empty = no authentication required
     "display_type": "auto",  # "auto", "oled", "console"
     "display_interface": "spi",  # "i2c" or "spi"
     "display_spi_device": 0,
@@ -109,6 +110,10 @@ class Config:
     @property
     def display_brightness(self) -> int:
         return self._config.get("display_brightness", 100)
+
+    @property
+    def web_pin(self) -> str:
+        return self._config.get("web_pin", "")
 
 
 # Global config instance

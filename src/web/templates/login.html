@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PiAlarm</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 30px;
+            font-size: 24px;
+        }
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 8px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #0f0f23;
+            color: #eee;
+            margin-bottom: 20px;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: #4fc3f7;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>PiAlarm</h1>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="post">
+            <input type="password" name="pin" placeholder="PIN"
+                   pattern="[0-9]*" inputmode="numeric" autofocus required>
+            <button type="submit" class="btn">Unlock</button>
+        </form>
+    </div>
+</body>
+</html>

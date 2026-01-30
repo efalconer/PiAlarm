@@ -167,6 +167,11 @@
             <a href="{{ url_for('list_messages') }}" class="{% if request.endpoint in ['list_messages', 'new_message'] %}active{% endif %}">Messages</a>
             <a href="{{ url_for('list_sprites') }}" class="{% if request.endpoint in ['list_sprites', 'new_sprite', 'edit_sprite'] %}active{% endif %}">Sprites</a>
             <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}">Settings</a>
+            {% if session.get('authenticated') %}
+            <form action="{{ url_for('logout') }}" method="post" style="display: inline; margin-left: auto;">
+                <button type="submit" style="background: none; border: none; color: #e74c3c; cursor: pointer; padding: 8px 16px;">Logout</button>
+            </form>
+            {% endif %}
         </nav>
         {% block content %}{% endblock %}
     </div>

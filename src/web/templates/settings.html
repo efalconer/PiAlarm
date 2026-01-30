@@ -56,6 +56,18 @@
                    value="{{ config.snooze_duration_minutes }}" min="1" max="30">
         </div>
 
+        <h2 style="margin: 30px 0 20px;">Security</h2>
+
+        <div class="form-group">
+            <label for="web_pin">Web Interface PIN</label>
+            <input type="password" id="web_pin" name="web_pin"
+                   value="{{ config.web_pin }}" placeholder="Leave empty to disable"
+                   pattern="[0-9]*" inputmode="numeric">
+            <p style="color: #666; font-size: 12px; margin-top: 5px;">
+                Numeric PIN to protect web access. Leave empty to disable protection.
+            </p>
+        </div>
+
         <button type="submit" class="btn">Save Settings</button>
     </form>
 </div>
