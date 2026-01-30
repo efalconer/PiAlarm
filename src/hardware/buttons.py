@@ -44,11 +44,6 @@ class ButtonHandler:
 
             for button in Button:
                 GPIO.setup(button.value, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-                # Remove any existing edge detection from previous runs
-                try:
-                    GPIO.remove_event_detect(button.value)
-                except Exception:
-                    pass  # Ignore if no edge detection was set
                 GPIO.add_event_detect(
                     button.value,
                     GPIO.FALLING,
