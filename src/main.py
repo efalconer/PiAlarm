@@ -42,6 +42,7 @@ class PiAlarm:
         self._last_weather_update = 0
         self._last_alarm_check = -1
         self._showing_forecast = False
+        self._showing_message = False
 
     def _init_display(self):
         """Initialize the appropriate display based on config."""
@@ -153,22 +154,27 @@ class PiAlarm:
             self.display.show_forecast(forecast_data)
 
     def _on_messages(self) -> None:
-        """Handle messages button press."""
+        """Handle messages button press - toggle through messages."""
         logger.info("Messages button pressed")
         message = self.message_service.get_next_unread()
         if message:
             self.message_service.mark_as_read(message.id)
             self.display.show_message(message.text)
+            self._showing_message = True
+            self._showing_forecast = False  # Messages take priority over forecast
         else:
-            self.display.show_message("End of messages", is_last=True)
+            # No more messages - return to main screen
+            self._showing_message = False
+            self.display.clear_message()
 
     def _update_display(self) -> None:
         """Update display with current data."""
-        # Alarm takes priority over forecast
+        # Alarm takes priority over everything
         if self.alarm_service.is_alarm_active:
             self._showing_forecast = False
-        elif self._showing_forecast:
-            return  # Don't overwrite forecast display
+            self._showing_message = False
+        elif self._showing_forecast or self._showing_message:
+            return  # Don't overwrite forecast/message display
 
         time_data = self.time_service.get_display_data()
         weather_data = self.weather_service.get_display_data()
