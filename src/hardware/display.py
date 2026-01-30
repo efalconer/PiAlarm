@@ -856,11 +856,11 @@ class WaveshareOLED(Display):
                     icon_type = self._get_weather_icon_type(data.weather_condition, data.hour)
                     icon_x = 78
                     icon_size = 18
-                    self._draw_weather_icon(draw, icon_x, 38, icon_type, size=icon_size)
+                    self._draw_weather_icon(draw, icon_x, 32, icon_type, size=icon_size)
 
                     # Temperature next to icon with 10px gap
                     temp_x = icon_x + icon_size + 10
-                    draw.text((temp_x, 44), data.weather_temp, font=self._font_small, fill="white")
+                    draw.text((temp_x, 38), data.weather_temp, font=self._font_small, fill="white")
 
                 # Envelope icon in lower-right corner when messages pending
                 if data.has_unread_messages:
