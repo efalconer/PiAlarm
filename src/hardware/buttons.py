@@ -45,7 +45,7 @@ class ButtonHandler:
                 gpio_button = GPIOButton(
                     button.value,
                     pull_up=True,
-                    bounce_time=0.3,
+                    bounce_time=0.1,
                 )
                 gpio_button.when_pressed = lambda b=button: self._handle_press(b)
                 self._buttons[button] = gpio_button

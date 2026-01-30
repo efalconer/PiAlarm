@@ -41,6 +41,7 @@ class PiAlarm:
         self._web_thread: threading.Thread | None = None
         self._last_weather_update = 0
         self._last_alarm_check = -1
+        self._showing_forecast = False
 
     def _init_display(self):
         """Initialize the appropriate display based on config."""
@@ -131,8 +132,14 @@ class PiAlarm:
         self.alarm_service.dismiss()
 
     def _on_forecast(self) -> None:
-        """Handle forecast button press."""
+        """Handle forecast button press - toggle forecast display."""
         logger.info("Forecast button pressed")
+        self._showing_forecast = not self._showing_forecast
+        if self._showing_forecast:
+            self._show_forecast()
+
+    def _show_forecast(self) -> None:
+        """Display the weather forecast."""
         forecast = self.weather_service.get_forecast()
         if forecast:
             forecast_data = [
@@ -157,6 +164,12 @@ class PiAlarm:
 
     def _update_display(self) -> None:
         """Update display with current data."""
+        # Alarm takes priority over forecast
+        if self.alarm_service.is_alarm_active:
+            self._showing_forecast = False
+        elif self._showing_forecast:
+            return  # Don't overwrite forecast display
+
         time_data = self.time_service.get_display_data()
         weather_data = self.weather_service.get_display_data()
 
