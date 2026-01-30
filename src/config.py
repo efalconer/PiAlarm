@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     "time_format_24h": False,
     "web_port": 5000,
     "web_pin": "",  # Empty = no authentication required
+    "alarms_paused": False,  # Vacation mode - pause all alarms
     "display_type": "auto",  # "auto", "oled", "console"
     "display_interface": "spi",  # "i2c" or "spi"
     "display_spi_device": 0,
@@ -114,6 +115,10 @@ class Config:
     @property
     def web_pin(self) -> str:
         return self._config.get("web_pin", "")
+
+    @property
+    def alarms_paused(self) -> bool:
+        return self._config.get("alarms_paused", False)
 
 
 # Global config instance

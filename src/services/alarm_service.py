@@ -17,6 +17,7 @@ DB_PATH = DATA_DIR / "alarms.db"
 
 
 DEFAULT_DISPLAY_TEXT = "Wake up Claire!"
+AUTO_DISMISS_MINUTES = 5  # Auto-dismiss alarm after this many minutes
 
 
 @dataclass
@@ -56,6 +57,7 @@ class AlarmService:
         self.audio_service = get_audio_service()
         self._snoozed_until: datetime | None = None
         self._active_alarm: Alarm | None = None
+        self._alarm_triggered_at: datetime | None = None
         self._on_alarm_trigger: Callable[[Alarm], None] | None = None
         self._init_db()
 
@@ -168,6 +170,18 @@ class AlarmService:
         """Check if any alarm should trigger now. Called once per minute."""
         now = self.time_service.now()
 
+        # Check for auto-dismiss (5 minutes without interaction)
+        if self._alarm_triggered_at and self._active_alarm and not self._snoozed_until:
+            elapsed = now - self._alarm_triggered_at
+            if elapsed >= timedelta(minutes=AUTO_DISMISS_MINUTES):
+                logger.info(f"Auto-dismissing alarm after {AUTO_DISMISS_MINUTES} minutes")
+                self.dismiss()
+                return None
+
+        # Skip all alarm checks if alarms are paused (vacation mode)
+        if self.config.alarms_paused:
+            return None
+
         # Check if we're in snooze period
         if self._snoozed_until and now < self._snoozed_until:
             return None
@@ -194,6 +208,7 @@ class AlarmService:
     def _trigger_alarm(self, alarm: Alarm) -> None:
         """Trigger an alarm."""
         self._active_alarm = alarm
+        self._alarm_triggered_at = self.time_service.now()
         logger.info(f"Alarm triggered: {alarm.label or alarm.id}")
         self.audio_service.play(alarm.sound_file, loop=True)
         if self._on_alarm_trigger:
@@ -212,6 +227,7 @@ class AlarmService:
         self.audio_service.stop()
         self._active_alarm = None
         self._snoozed_until = None
+        self._alarm_triggered_at = None
         logger.info("Alarm dismissed")
 
     @property

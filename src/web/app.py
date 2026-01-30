@@ -87,6 +87,7 @@ def logout():
 @app.route("/")
 def index():
     """Dashboard - show current status and alarms."""
+    config = get_config()
     alarm_service = get_alarm_service()
     time_service = get_time_service()
     weather_service = get_weather_service()
@@ -97,6 +98,7 @@ def index():
         time_data=time_service.get_display_data(),
         weather=weather_service.get_display_data(),
         is_alarm_active=alarm_service.is_alarm_active,
+        alarms_paused=config.alarms_paused,
     )
 
 
@@ -543,6 +545,15 @@ def api_dismiss():
     button_handler = get_button_handler()
     button_handler.simulate_press(Button.DISMISS)
     return jsonify({"success": True})
+
+
+@app.route("/api/alarms/pause", methods=["POST"])
+def api_toggle_alarms_pause():
+    """Toggle alarms paused state (vacation mode)."""
+    config = get_config()
+    new_state = not config.alarms_paused
+    config.set("alarms_paused", new_state)
+    return jsonify({"paused": new_state})
 
 
 @app.route("/api/forecast")

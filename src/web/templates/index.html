@@ -11,6 +11,13 @@
 </div>
 {% endif %}
 
+{% if alarms_paused %}
+<div class="alert" style="background: #f39c12; color: #000; display: flex; justify-content: space-between; align-items: center;">
+    <span><strong>Vacation Mode</strong> - All alarms are paused</span>
+    <button class="btn" style="background: #000; color: #f39c12;" onclick="togglePause()">Resume Alarms</button>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="time-display" id="time">{{ time_data.time }}</div>
     <div class="date-display">{{ time_data.date }}</div>
@@ -32,7 +39,12 @@
 {% endif %}
 
 <div class="card">
-    <h2>Upcoming Alarms</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Upcoming Alarms</h2>
+        {% if not alarms_paused %}
+        <button class="btn btn-secondary" onclick="togglePause()" style="font-size: 12px; padding: 6px 12px;">Pause All</button>
+        {% endif %}
+    </div>
     {% if alarms %}
     <ul class="alarm-list">
         {% for alarm in alarms if alarm.enabled %}
@@ -71,6 +83,10 @@ function snooze() {
 
 function dismiss() {
     fetch('/api/dismiss', { method: 'POST' }).then(() => location.reload());
+}
+
+function togglePause() {
+    fetch('/api/alarms/pause', { method: 'POST' }).then(() => location.reload());
 }
 
 function showForecast() {

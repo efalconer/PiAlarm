@@ -17,6 +17,8 @@ A Raspberry Pi-based alarm clock with weather display and web configuration.
 - Multiple alarms with per-day scheduling
 - MP3 alarm sounds with playlist support
 - Snooze and dismiss via physical buttons or web interface
+- Auto-dismiss alarms after 5 minutes if no interaction
+- Vacation mode to pause all alarms
 - Message display system with envelope notification icon
 - Custom pixel art sprites for different times of day
 - Custom alarm display text (default: "Wake up Claire!")
