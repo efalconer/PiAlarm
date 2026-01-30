@@ -13,6 +13,7 @@ from src.services.weather_service import get_weather_service
 from src.services.time_service import get_time_service
 from src.services.playlist_service import get_playlist_service, Playlist
 from src.services.sprite_service import get_sprite_service, Sprite, TimeRange
+from src.services.message_service import get_message_service
 from src.hardware.buttons import get_button_handler, Button
 
 logger = logging.getLogger(__name__)
@@ -401,6 +402,42 @@ def api_sprite(sprite_id: str):
             "time_ranges": [tr.to_dict() for tr in sprite.time_ranges],
         })
     return jsonify({"error": "Sprite not found"}), 404
+
+
+@app.route("/messages")
+def list_messages():
+    """List all messages."""
+    message_service = get_message_service()
+    return render_template("messages.html", messages=message_service.get_all_messages())
+
+
+@app.route("/messages/new", methods=["GET", "POST"])
+def new_message():
+    """Create a new message."""
+    if request.method == "POST":
+        message_service = get_message_service()
+        text = request.form.get("text", "").strip()
+        if text:
+            message_service.create_message(text)
+        return redirect(url_for("list_messages"))
+
+    return render_template("message_form.html")
+
+
+@app.route("/messages/<message_id>/delete", methods=["POST"])
+def delete_message(message_id: str):
+    """Delete a message."""
+    message_service = get_message_service()
+    message_service.delete_message(message_id)
+    return redirect(url_for("list_messages"))
+
+
+@app.route("/api/messages/button", methods=["POST"])
+def api_messages_button():
+    """Simulate messages button press (for testing)."""
+    button_handler = get_button_handler()
+    button_handler.simulate_press(Button.MESSAGES)
+    return jsonify({"success": True})
 
 
 @app.route("/api/status")

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Messages - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>Messages</h1>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('new_message') }}" class="btn">New Message</a>
+    <form action="{{ url_for('api_messages_button') }}" method="post" style="display: inline;">
+        <button type="submit" class="btn btn-secondary">Test Button</button>
+    </form>
+</div>
+
+{% if messages %}
+<div class="card">
+    <ul class="alarm-list">
+        {% for message in messages %}
+        <li class="alarm-item">
+            <div>
+                <div style="margin-bottom: 5px;">{{ message.text[:100] }}{% if message.text|length > 100 %}...{% endif %}</div>
+                <div class="alarm-label">
+                    {{ message.created_at[:16].replace('T', ' ') }}
+                    {% if not message.read %}
+                    <span style="color: #4fc3f7; margin-left: 10px;">Unread</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="alarm-actions">
+                <form action="{{ url_for('delete_message', message_id=message.id) }}" method="post"
+                      onsubmit="return confirm('Delete this message?');">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% else %}
+<div class="card">
+    <p style="color: #888; text-align: center;">No messages yet. Create one to send to the display!</p>
+</div>
+{% endif %}
+{% endblock %}

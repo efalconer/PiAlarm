@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}New Message - PiAlarm{% endblock %}
+
+{% block content %}
+<h1>New Message</h1>
+
+<div class="card">
+    <form method="post">
+        <div class="form-group">
+            <label for="text">Message</label>
+            <textarea id="text" name="text" rows="4" required
+                      placeholder="Enter your message here..."
+                      style="width: 100%; padding: 12px; border: 1px solid #333; border-radius: 6px; background: #0f0f23; color: #eee; font-size: 16px; resize: vertical;"></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn">Create Message</button>
+            <a href="{{ url_for('list_messages') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -21,6 +21,7 @@ class Button(Enum):
     SNOOZE = 17
     DISMISS = 27
     FORECAST = 22
+    MESSAGES = 23
 
 
 class ButtonHandler:

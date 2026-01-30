@@ -28,6 +28,7 @@ class DisplayData:
     alarm_active: bool = False
     alarm_label: str | None = None
     forecast: list[dict] | None = None
+    has_unread_messages: bool = False
 
 
 class Display(ABC):
@@ -78,6 +79,16 @@ class Display(ABC):
         """Update display with all current data."""
         pass
 
+    @abstractmethod
+    def show_message(self, text: str, is_last: bool = False) -> None:
+        """Display a message on screen."""
+        pass
+
+    @abstractmethod
+    def clear_message(self) -> None:
+        """Clear message display and return to normal mode."""
+        pass
+
 
 class ConsoleDisplay(Display):
     """Console-based display for development/testing."""
@@ -122,6 +133,17 @@ class ConsoleDisplay(Display):
             self.show_weather(data.weather_temp, data.weather_condition or "")
         if data.alarm_active:
             self.show_alarm_active(data.alarm_label)
+        if data.has_unread_messages:
+            print(" [*]", end="", flush=True)
+
+    def show_message(self, text: str, is_last: bool = False) -> None:
+        if is_last:
+            print(f"\n--- End of messages ---")
+        else:
+            print(f"\n--- Message: {text} ---")
+
+    def clear_message(self) -> None:
+        pass  # Console doesn't need explicit clearing
 
 
 class WaveshareOLED(Display):
@@ -180,6 +202,9 @@ class WaveshareOLED(Display):
         self._font_alarm = None
         self._font_alarm_small = None
         self._alarm_blink_state = False
+        self._showing_message = False
+        self._message_text: str | None = None
+        self._message_is_last = False
 
     def initialize(self) -> bool:
         """Initialize the OLED display."""
@@ -372,6 +397,14 @@ class WaveshareOLED(Display):
             draw.ellipse([x + 4, y + 15, x + 6, y + 17], fill="white")
             draw.ellipse([x + 10, y + 17, x + 12, y + 19], fill="white")
             draw.ellipse([x + 16, y + 15, x + 18, y + 17], fill="white")
+
+    def _draw_envelope_icon(self, draw, x: int, y: int):
+        """Draw a small envelope icon (8x6 pixels) at the specified position."""
+        # Envelope outline (rectangle)
+        draw.rectangle([x, y, x + 7, y + 5], outline="white", fill=None)
+        # Envelope flap (V shape inside)
+        draw.line([x, y, x + 3, y + 2], fill="white")
+        draw.line([x + 7, y, x + 4, y + 2], fill="white")
 
     def _get_sprite_service(self) -> "SpriteService | None":
         """Get sprite service lazily to avoid circular imports."""
@@ -815,6 +848,63 @@ class WaveshareOLED(Display):
                     # Temperature next to icon with 10px gap
                     temp_x = icon_x + icon_size + 10
                     draw.text((temp_x, 44), data.weather_temp, font=self._font_small, fill="white")
+
+                # Envelope icon in lower-right corner when messages pending
+                if data.has_unread_messages:
+                    self._draw_envelope_icon(draw, 118, 56)
+
+    def show_message(self, text: str, is_last: bool = False) -> None:
+        """Display a message on screen (full screen with word-wrapped text)."""
+        if not self._device:
+            return
+
+        self._showing_message = True
+        self._message_text = text
+        self._message_is_last = is_last
+
+        from luma.core.render import canvas
+
+        with canvas(self._device) as draw:
+            if is_last:
+                # Show "End of messages" centered
+                msg = "End of messages"
+                bbox = draw.textbbox((0, 0), msg, font=self._font_medium)
+                text_width = bbox[2] - bbox[0]
+                x = (self.WIDTH - text_width) // 2
+                draw.text((x, 26), msg, font=self._font_medium, fill="white")
+            else:
+                # Word-wrap and display message text
+                self._draw_wrapped_text(draw, text, 4, 4, self.WIDTH - 8, self._font_small)
+
+    def _draw_wrapped_text(self, draw, text: str, x: int, y: int, max_width: int, font) -> None:
+        """Draw word-wrapped text within a maximum width."""
+        words = text.split()
+        lines = []
+        current_line = ""
+
+        for word in words:
+            test_line = f"{current_line} {word}".strip()
+            bbox = draw.textbbox((0, 0), test_line, font=font)
+            if bbox[2] - bbox[0] <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+
+        if current_line:
+            lines.append(current_line)
+
+        # Draw each line
+        line_height = 12
+        for i, line in enumerate(lines[:5]):  # Max 5 lines
+            draw.text((x, y + i * line_height), line, font=font, fill="white")
+
+    def clear_message(self) -> None:
+        """Clear message display and return to normal mode."""
+        self._showing_message = False
+        self._message_text = None
+        self._message_is_last = False
 
 
 # Global instance

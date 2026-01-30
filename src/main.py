@@ -11,6 +11,7 @@ from src.services.time_service import get_time_service
 from src.services.weather_service import get_weather_service
 from src.services.alarm_service import get_alarm_service
 from src.services.audio_service import get_audio_service
+from src.services.message_service import get_message_service
 from src.hardware.buttons import get_button_handler, Button
 from src.hardware.display import get_display, set_display, DisplayData, ConsoleDisplay, WaveshareOLED
 from src.web.app import run_web_server
@@ -32,6 +33,7 @@ class PiAlarm:
         self.weather_service = get_weather_service()
         self.alarm_service = get_alarm_service()
         self.audio_service = get_audio_service()
+        self.message_service = get_message_service()
         self.button_handler = get_button_handler()
         self.display = self._init_display()
 
@@ -99,6 +101,7 @@ class PiAlarm:
         self.button_handler.set_callback(Button.SNOOZE, self._on_snooze)
         self.button_handler.set_callback(Button.DISMISS, self._on_dismiss)
         self.button_handler.set_callback(Button.FORECAST, self._on_forecast)
+        self.button_handler.set_callback(Button.MESSAGES, self._on_messages)
 
         # Fetch initial weather
         self.weather_service.fetch_current()
@@ -142,6 +145,16 @@ class PiAlarm:
             ]
             self.display.show_forecast(forecast_data)
 
+    def _on_messages(self) -> None:
+        """Handle messages button press."""
+        logger.info("Messages button pressed")
+        message = self.message_service.get_next_unread()
+        if message:
+            self.message_service.mark_as_read(message.id)
+            self.display.show_message(message.text)
+        else:
+            self.display.show_message("End of messages", is_last=True)
+
     def _update_display(self) -> None:
         """Update display with current data."""
         time_data = self.time_service.get_display_data()
@@ -156,6 +169,7 @@ class PiAlarm:
             weather_condition=weather_data["condition"] if weather_data else None,
             alarm_active=self.alarm_service.is_alarm_active,
             alarm_label=self.alarm_service.active_alarm.label if self.alarm_service.active_alarm else None,
+            has_unread_messages=self.message_service.has_unread(),
         )
         self.display.update(data)
 
