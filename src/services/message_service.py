@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.config import DATA_DIR
+from src.services.time_service import get_time_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class MessageService:
     """Manages messages with JSON file persistence."""
 
     def __init__(self):
+        self.time_service = get_time_service()
         self._messages: list[Message] = []
         self._load()
 
@@ -92,7 +94,7 @@ class MessageService:
         message = Message(
             id=str(uuid.uuid4()),
             text=text.strip(),
-            created_at=datetime.now().isoformat(),
+            created_at=self.time_service.now().isoformat(),
             read=False,
         )
         self._messages.append(message)

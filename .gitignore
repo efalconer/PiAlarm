@@ -9,6 +9,7 @@ venv/
 
 # Project
 config.json
+.secret_key
 data/
 music/*.mp3
 music/*.wav

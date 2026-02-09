@@ -354,14 +354,18 @@ def settings():
     config = get_config()
 
     if request.method == "POST":
-        config.update({
+        updates = {
             "weather_api_key": request.form.get("weather_api_key", ""),
             "weather_location": request.form.get("weather_location", ""),
             "timezone": request.form.get("timezone", "America/Los_Angeles"),
             "snooze_duration_minutes": int(request.form.get("snooze_duration", 9)),
             "time_format_24h": request.form.get("time_format_24h") == "on",
-            "web_pin": request.form.get("web_pin", ""),
-        })
+        }
+        # Only update PIN if a new value was provided (empty = keep current)
+        new_pin = request.form.get("web_pin", "")
+        if new_pin:
+            updates["web_pin"] = new_pin.strip()
+        config.update(updates)
         return redirect(url_for("settings"))
 
     return render_template("settings.html", config=config)

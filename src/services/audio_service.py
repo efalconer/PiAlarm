@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 from pathlib import Path
 
 import pygame
@@ -15,6 +16,7 @@ class AudioService:
     """Manages audio playback for alarm sounds and music."""
 
     def __init__(self):
+        self._lock = threading.Lock()
         self._initialized = False
         self._current_file: str | None = None
         self._volume = 1.0
@@ -40,11 +42,12 @@ class AudioService:
 
     def shutdown(self) -> None:
         """Shutdown audio service."""
-        if self._initialized:
-            self.stop()
-            pygame.mixer.quit()
-            self._initialized = False
-            logger.info("Audio service shutdown")
+        with self._lock:
+            if self._initialized:
+                self._stop_locked()
+                pygame.mixer.quit()
+                self._initialized = False
+                logger.info("Audio service shutdown")
 
     def get_available_sounds(self) -> list[str]:
         """Get list of available audio files (MP3 and WAV)."""
@@ -55,89 +58,90 @@ class AudioService:
 
     def play(self, filename: str, loop: bool = True) -> bool:
         """Play an MP3 file. Returns True if successful."""
-        if not self._initialized and not self.initialize():
-            return False
+        with self._lock:
+            if not self._initialized and not self.initialize():
+                return False
 
-        filepath = MUSIC_DIR / filename
-        if not filepath.exists():
-            logger.error(f"Audio file not found: {filepath}")
-            return False
+            filepath = MUSIC_DIR / filename
+            if not filepath.exists():
+                logger.error(f"Audio file not found: {filepath}")
+                return False
 
-        try:
-            self._playlist_mode = False
-            pygame.mixer.music.load(str(filepath))
-            pygame.mixer.music.set_volume(self._volume)
-            loops = -1 if loop else 0
-            pygame.mixer.music.play(loops=loops)
-            self._current_file = filename
-            logger.info(f"Playing: {filename}")
-            return True
-        except pygame.error as e:
-            logger.error(f"Failed to play {filename}: {e}")
-            return False
+            try:
+                self._playlist_mode = False
+                pygame.mixer.music.load(str(filepath))
+                pygame.mixer.music.set_volume(self._volume)
+                loops = -1 if loop else 0
+                pygame.mixer.music.play(loops=loops)
+                self._current_file = filename
+                logger.info(f"Playing: {filename}")
+                return True
+            except pygame.error as e:
+                logger.error(f"Failed to play {filename}: {e}")
+                return False
 
     def play_playlist(self, tracks: list[str], start_index: int = 0) -> bool:
         """Play a playlist of tracks."""
-        if not tracks:
-            return False
+        with self._lock:
+            if not tracks:
+                return False
 
-        if not self._initialized and not self.initialize():
-            return False
+            if not self._initialized and not self.initialize():
+                return False
 
-        self._playlist = tracks
-        self._playlist_index = start_index
-        self._playlist_mode = True
+            self._playlist = tracks
+            self._playlist_index = start_index
+            self._playlist_mode = True
 
-        # Set up end event for playlist advancement
-        pygame.mixer.music.set_endevent(pygame.USEREVENT)
+            # Set up end event for playlist advancement
+            pygame.mixer.music.set_endevent(pygame.USEREVENT)
 
-        return self._play_current_track()
+            return self._play_current_track()
 
     def _play_current_track(self) -> bool:
-        """Play the current track in the playlist."""
-        if not self._playlist or self._playlist_index >= len(self._playlist):
-            self._playlist_mode = False
-            return False
+        """Play the current track in the playlist, skipping unplayable tracks."""
+        while self._playlist and self._playlist_index < len(self._playlist):
+            filename = self._playlist[self._playlist_index]
+            filepath = MUSIC_DIR / filename
 
-        filename = self._playlist[self._playlist_index]
-        filepath = MUSIC_DIR / filename
+            if not filepath.exists():
+                logger.warning(f"Track not found, skipping: {filename}")
+                self._playlist_index += 1
+                continue
 
-        if not filepath.exists():
-            logger.warning(f"Track not found, skipping: {filename}")
-            return self.next_track()
+            try:
+                pygame.mixer.music.load(str(filepath))
+                pygame.mixer.music.set_volume(self._volume)
+                pygame.mixer.music.play()
+                self._current_file = filename
+                logger.info(f"Playing track {self._playlist_index + 1}/{len(self._playlist)}: {filename}")
+                return True
+            except pygame.error as e:
+                logger.error(f"Failed to play {filename}: {e}")
+                self._playlist_index += 1
 
-        try:
-            pygame.mixer.music.load(str(filepath))
-            pygame.mixer.music.set_volume(self._volume)
-            pygame.mixer.music.play()
-            self._current_file = filename
-            logger.info(f"Playing track {self._playlist_index + 1}/{len(self._playlist)}: {filename}")
-            return True
-        except pygame.error as e:
-            logger.error(f"Failed to play {filename}: {e}")
-            return self.next_track()
+        logger.info("Playlist finished (no playable tracks remaining)")
+        self._playlist_mode = False
+        self._current_file = None
+        return False
 
     def next_track(self) -> bool:
         """Skip to next track in playlist."""
-        if not self._playlist_mode or not self._playlist:
-            return False
+        with self._lock:
+            if not self._playlist_mode or not self._playlist:
+                return False
 
-        self._playlist_index += 1
-        if self._playlist_index >= len(self._playlist):
-            logger.info("Playlist finished")
-            self._playlist_mode = False
-            self._current_file = None
-            return False
-
-        return self._play_current_track()
+            self._playlist_index += 1
+            return self._play_current_track()
 
     def previous_track(self) -> bool:
         """Go to previous track in playlist."""
-        if not self._playlist_mode or not self._playlist:
-            return False
+        with self._lock:
+            if not self._playlist_mode or not self._playlist:
+                return False
 
-        self._playlist_index = max(0, self._playlist_index - 1)
-        return self._play_current_track()
+            self._playlist_index = max(0, self._playlist_index - 1)
+            return self._play_current_track()
 
     def check_playlist_advance(self) -> None:
         """Check if we need to advance to the next track. Call this periodically."""
@@ -146,10 +150,19 @@ class AudioService:
 
         for event in pygame.event.get():
             if event.type == pygame.USEREVENT:
-                self.next_track()
+                with self._lock:
+                    if not self._playlist_mode or not self._playlist:
+                        return
+                    self._playlist_index += 1
+                    self._play_current_track()
 
     def stop(self) -> None:
         """Stop current playback."""
+        with self._lock:
+            self._stop_locked()
+
+    def _stop_locked(self) -> None:
+        """Stop current playback (must be called with _lock held)."""
         if self._initialized:
             pygame.mixer.music.stop()
             logger.info("Playback stopped")
@@ -160,6 +173,11 @@ class AudioService:
 
     def pause(self) -> None:
         """Pause current playback."""
+        with self._lock:
+            self._pause_locked()
+
+    def _pause_locked(self) -> None:
+        """Pause current playback (must be called with _lock held)."""
         if self._initialized and self.is_playing():
             pygame.mixer.music.pause()
             self._paused = True
@@ -167,6 +185,11 @@ class AudioService:
 
     def unpause(self) -> None:
         """Resume paused playback."""
+        with self._lock:
+            self._unpause_locked()
+
+    def _unpause_locked(self) -> None:
+        """Resume paused playback (must be called with _lock held)."""
         if self._initialized and self._paused:
             pygame.mixer.music.unpause()
             self._paused = False
@@ -174,11 +197,12 @@ class AudioService:
 
     def toggle_pause(self) -> bool:
         """Toggle pause state. Returns new paused state."""
-        if self._paused:
-            self.unpause()
-        else:
-            self.pause()
-        return self._paused
+        with self._lock:
+            if self._paused:
+                self._unpause_locked()
+            else:
+                self._pause_locked()
+            return self._paused
 
     @property
     def is_paused(self) -> bool:
@@ -257,9 +281,10 @@ class AudioService:
         if not filepath.exists():
             return False
 
-        # Stop if currently playing this file
-        if self._current_file == filename:
-            self.stop()
+        with self._lock:
+            # Stop if currently playing this file
+            if self._current_file == filename:
+                self._stop_locked()
 
         try:
             os.remove(filepath)
