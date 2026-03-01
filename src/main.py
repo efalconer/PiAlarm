@@ -227,6 +227,17 @@ class PiAlarm:
         time_data = self.time_service.get_display_data()
         weather_data = self.weather_service.get_display_data()
 
+        # Compute snooze countdown when alarm is snoozed
+        snooze_remaining = None
+        snooze_until_time = None
+        if self.alarm_service.is_snoozed:
+            snoozed_until = self.alarm_service.snoozed_until
+            remaining = snoozed_until - self.time_service.now()
+            total_secs = max(0, int(remaining.total_seconds()))
+            mins, secs = divmod(total_secs, 60)
+            snooze_remaining = f"{mins}:{secs:02d}"
+            snooze_until_time = snoozed_until.strftime("%I:%M %p").lstrip("0")
+
         active_alarm = self.alarm_service.active_alarm
         data = DisplayData(
             time=time_data["time"],
@@ -239,6 +250,8 @@ class PiAlarm:
             alarm_label=active_alarm.label if active_alarm else None,
             alarm_display_text=active_alarm.display_text if active_alarm else "Wake up Claire!",
             has_unread_messages=self.message_service.has_unread(),
+            snooze_remaining=snooze_remaining,
+            snooze_until_time=snooze_until_time,
         )
         self.display.update(data)
 

@@ -30,6 +30,8 @@ class DisplayData:
     alarm_display_text: str = "Wake up Claire!"
     forecast: list[dict] | None = None
     has_unread_messages: bool = False
+    snooze_remaining: str | None = None   # "9:42" while snoozed
+    snooze_until_time: str | None = None  # "7:30 AM" while snoozed
 
 
 class Display(ABC):
@@ -148,7 +150,10 @@ class ConsoleDisplay(Display):
         if data.weather_temp:
             self.show_weather(data.weather_temp, data.weather_condition or "")
         if data.alarm_active:
-            self.show_alarm_active(data.alarm_label)
+            if data.snooze_remaining is not None:
+                print(f" [SNOOZED {data.snooze_remaining} until {data.snooze_until_time}]", end="", flush=True)
+            else:
+                self.show_alarm_active(data.alarm_label)
         if data.has_unread_messages:
             print(" [*]", end="", flush=True)
 
@@ -850,42 +855,55 @@ class WaveshareOLED(Display):
 
         with canvas(self._device) as draw:
             if data.alarm_active:
-                # Alarm mode - custom text flashing black/white
-                self._alarm_blink_state = not self._alarm_blink_state
+                if data.snooze_remaining is not None:
+                    # Snooze countdown mode
+                    # Row 1: "SNOOZED" label
+                    label = "SNOOZED"
+                    lw = draw.textbbox((0, 0), label, font=self._font_small)[2]
+                    draw.text(((self.WIDTH - lw) // 2, 2), label, font=self._font_small, fill="white")
 
-                if self._alarm_blink_state:
-                    # White background, black text
-                    bg_color = "white"
-                    text_color = "black"
+                    # Row 2: large MM:SS countdown
+                    cw = draw.textbbox((0, 0), data.snooze_remaining, font=self._font_time)[2]
+                    draw.text(((self.WIDTH - cw) // 2, 17), data.snooze_remaining, font=self._font_time, fill="white")
+
+                    # Row 3: "until X:XX AM"
+                    if data.snooze_until_time:
+                        until_str = f"until {data.snooze_until_time}"
+                        uw = draw.textbbox((0, 0), until_str, font=self._font_tiny)[2]
+                        draw.text(((self.WIDTH - uw) // 2, 52), until_str, font=self._font_tiny, fill="white")
                 else:
-                    # Black background, white text
-                    bg_color = "black"
-                    text_color = "white"
+                    # Alarm ringing mode - text flashing black/white
+                    self._alarm_blink_state = not self._alarm_blink_state
 
-                draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
+                    if self._alarm_blink_state:
+                        bg_color = "white"
+                        text_color = "black"
+                    else:
+                        bg_color = "black"
+                        text_color = "white"
 
-                # Split display text into two lines for better display
-                display_text = data.alarm_display_text or "Wake up Claire!"
-                words = display_text.split()
-                if len(words) >= 2:
-                    # Split roughly in half
-                    mid = len(words) // 2
-                    text1 = " ".join(words[:mid])
-                    text2 = " ".join(words[mid:])
-                else:
-                    text1 = display_text
-                    text2 = ""
+                    draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
 
-                bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
-                x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
-                if text2:
-                    bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
-                    x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
-                    draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
-                    draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
-                else:
-                    # Single line, center vertically
-                    draw.text((x1, 24), text1, font=self._font_alarm, fill=text_color)
+                    # Split display text into two lines for better display
+                    display_text = data.alarm_display_text or "Wake up Claire!"
+                    words = display_text.split()
+                    if len(words) >= 2:
+                        mid = len(words) // 2
+                        text1 = " ".join(words[:mid])
+                        text2 = " ".join(words[mid:])
+                    else:
+                        text1 = display_text
+                        text2 = ""
+
+                    bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
+                    x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
+                    if text2:
+                        bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
+                        x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
+                        draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
+                        draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
+                    else:
+                        draw.text((x1, 24), text1, font=self._font_alarm, fill=text_color)
             else:
                 # Normal mode - time, date, weather, dog
                 # Time - large, centered, takes up top portion
