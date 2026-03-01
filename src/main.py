@@ -43,6 +43,7 @@ class PiAlarm:
         self._last_alarm_check = -1
         self._showing_forecast = False
         self._showing_message = False
+        self._music_mode = False
 
     def _init_display(self):
         """Initialize the appropriate display based on config."""
@@ -104,6 +105,7 @@ class PiAlarm:
         self.button_handler.set_callback(Button.DISMISS, self._on_dismiss)
         self.button_handler.set_callback(Button.FORECAST, self._on_forecast)
         self.button_handler.set_callback(Button.MESSAGES, self._on_messages)
+        self.button_handler.set_callback(Button.MUSIC, self._on_music)
 
         # Fetch initial weather
         self.weather_service.fetch_current()
@@ -129,15 +131,24 @@ class PiAlarm:
 
     def _on_dismiss(self) -> None:
         """Handle dismiss button press."""
-        logger.info("Dismiss button pressed")
-        self.alarm_service.dismiss()
+        if self._music_mode:
+            logger.info("Dismiss pressed — stopping music player")
+            self.audio_service.stop()
+            self._music_mode = False
+        else:
+            logger.info("Dismiss button pressed")
+            self.alarm_service.dismiss()
 
     def _on_forecast(self) -> None:
-        """Handle forecast button press - toggle forecast display."""
-        logger.info("Forecast button pressed")
-        self._showing_forecast = not self._showing_forecast
-        if self._showing_forecast:
-            self._show_forecast()
+        """Handle forecast button press - toggle forecast, or previous track in music mode."""
+        if self._music_mode:
+            logger.info("Forecast button pressed — previous track")
+            self.audio_service.previous_track()
+        else:
+            logger.info("Forecast button pressed")
+            self._showing_forecast = not self._showing_forecast
+            if self._showing_forecast:
+                self._show_forecast()
 
     def _show_forecast(self) -> None:
         """Display the weather forecast."""
@@ -154,18 +165,43 @@ class PiAlarm:
             self.display.show_forecast(forecast_data)
 
     def _on_messages(self) -> None:
-        """Handle messages button press - toggle through messages."""
-        logger.info("Messages button pressed")
-        message = self.message_service.get_next_unread()
-        if message:
-            self.message_service.mark_as_read(message.id)
-            self.display.show_message(message.text)
-            self._showing_message = True
-            self._showing_forecast = False  # Messages take priority over forecast
+        """Handle messages button press - next track in music mode, otherwise cycle messages."""
+        if self._music_mode:
+            logger.info("Messages button pressed — next track")
+            self.audio_service.next_track()
         else:
-            # No more messages - return to main screen
-            self._showing_message = False
-            self.display.clear_message()
+            logger.info("Messages button pressed")
+            message = self.message_service.get_next_unread()
+            if message:
+                self.message_service.mark_as_read(message.id)
+                self.display.show_message(message.text)
+                self._showing_message = True
+                self._showing_forecast = False  # Messages take priority over forecast
+            else:
+                # No more messages - return to main screen
+                self._showing_message = False
+                self.display.clear_message()
+
+    def _on_music(self) -> None:
+        """Handle music button press - start music player with all uploaded tracks."""
+        logger.info("Music button pressed")
+        tracks = self.audio_service.get_available_sounds()
+        if not tracks:
+            logger.warning("No music files found in music directory")
+            return
+        self._showing_forecast = False
+        self._showing_message = False
+        self._music_mode = True
+        self.audio_service.play_playlist(tracks, start_index=0)
+        logger.info(f"Music player started with {len(tracks)} track(s)")
+
+    def _update_music_display(self) -> None:
+        """Update display while in music player mode."""
+        track_name = self.audio_service.current_file or "Unknown"
+        track_num, total_tracks = self.audio_service.playlist_position
+        elapsed_ms = self.audio_service.get_position_ms()
+        duration_ms = self.audio_service.get_track_duration_ms()
+        self.display.show_music_player(track_name, track_num, total_tracks, elapsed_ms, duration_ms)
 
     def _update_display(self) -> None:
         """Update display with current data."""
@@ -173,6 +209,14 @@ class PiAlarm:
         if self.alarm_service.is_alarm_active:
             self._showing_forecast = False
             self._showing_message = False
+            self._music_mode = False
+        elif self._music_mode:
+            # Exit music mode automatically when the playlist finishes
+            if not self.audio_service.is_playlist_mode and not self.audio_service.has_active_playback():
+                self._music_mode = False
+            else:
+                self._update_music_display()
+                return
         elif self._showing_forecast or self._showing_message:
             return  # Don't overwrite forecast/message display
 

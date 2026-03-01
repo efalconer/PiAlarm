@@ -90,6 +90,18 @@ class Display(ABC):
         """Clear message display and return to normal mode."""
         pass
 
+    @abstractmethod
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        """Display music player screen with track info and progress."""
+        pass
+
 
 class ConsoleDisplay(Display):
     """Console-based display for development/testing."""
@@ -144,6 +156,19 @@ class ConsoleDisplay(Display):
 
     def clear_message(self) -> None:
         pass  # Console doesn't need explicit clearing
+
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        elapsed_s = elapsed_ms // 1000
+        elapsed_str = f"{elapsed_s // 60}:{elapsed_s % 60:02d}"
+        suffix = f" / {duration_ms // 1000 // 60}:{(duration_ms // 1000) % 60:02d}" if duration_ms else ""
+        print(f"\r[Music] {track_name} ({track_num}/{total_tracks}) {elapsed_str}{suffix}", end="", flush=True)
 
 
 class WaveshareOLED(Display):
@@ -912,6 +937,81 @@ class WaveshareOLED(Display):
         line_height = 12
         for i, line in enumerate(lines[:5]):  # Max 5 lines
             draw.text((x, y + i * line_height), line, font=font, fill="white")
+
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        """Display music player screen with track info and progress."""
+        if not self._device:
+            return
+
+        from luma.core.render import canvas
+
+        # Strip file extension for display
+        display_name = track_name.rsplit(".", 1)[0] if "." in track_name else track_name
+
+        # Elapsed time string
+        elapsed_s = elapsed_ms // 1000
+        elapsed_str = f"{elapsed_s // 60}:{elapsed_s % 60:02d}"
+        if duration_ms is not None:
+            duration_s = duration_ms // 1000
+            time_str = f"{elapsed_str} / {duration_s // 60}:{duration_s % 60:02d}"
+        else:
+            time_str = elapsed_str
+
+        with canvas(self._device) as draw:
+            # Header row
+            draw.text((0, 0), "Now Playing", font=self._font_tiny, fill="white")
+
+            # Track name — truncate to fit 128px width using the small font
+            # Measure and shorten until it fits
+            name = display_name
+            while name:
+                bbox = draw.textbbox((0, 0), name, font=self._font_small)
+                if bbox[2] - bbox[0] <= self.WIDTH:
+                    break
+                name = name[:-1]
+            if name != display_name:
+                name = name[:-1] + "\u2026"  # ellipsis
+            draw.text((0, 11), name, font=self._font_small, fill="white")
+
+            # Track position
+            draw.text((0, 24), f"Track {track_num} of {total_tracks}", font=self._font_tiny, fill="white")
+
+            # Progress bar outline
+            bar_x, bar_y, bar_w, bar_h = 4, 35, 120, 6
+            draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], outline="white")
+
+            inner_w = bar_w - 2
+            if duration_ms and duration_ms > 0:
+                fill_w = int(min(elapsed_ms / duration_ms, 1.0) * inner_w)
+                if fill_w > 0:
+                    draw.rectangle(
+                        [bar_x + 1, bar_y + 1, bar_x + 1 + fill_w, bar_y + bar_h - 1],
+                        fill="white",
+                    )
+            else:
+                # Bouncing indicator when duration unknown
+                block_w = 20
+                period = inner_w - block_w
+                tick = (elapsed_ms // 300) % (period * 2)
+                pos = tick if tick <= period else period * 2 - tick
+                draw.rectangle(
+                    [bar_x + 1 + pos, bar_y + 1, bar_x + 1 + pos + block_w, bar_y + bar_h - 1],
+                    fill="white",
+                )
+
+            # Time display
+            draw.text((0, 44), time_str, font=self._font_tiny, fill="white")
+
+            # Button hints
+            draw.text((0, 55), "< Prev", font=self._font_tiny, fill="white")
+            draw.text((88, 55), "Next >", font=self._font_tiny, fill="white")
 
     def clear_message(self) -> None:
         """Clear message display and return to normal mode."""
