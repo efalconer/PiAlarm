@@ -30,6 +30,8 @@ class DisplayData:
     alarm_display_text: str = "Wake up Claire!"
     forecast: list[dict] | None = None
     has_unread_messages: bool = False
+    snooze_remaining: str | None = None   # "9:42" while snoozed
+    snooze_until_time: str | None = None  # "7:30 AM" while snoozed
 
 
 class Display(ABC):
@@ -90,6 +92,18 @@ class Display(ABC):
         """Clear message display and return to normal mode."""
         pass
 
+    @abstractmethod
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        """Display music player screen with track info and progress."""
+        pass
+
 
 class ConsoleDisplay(Display):
     """Console-based display for development/testing."""
@@ -113,8 +127,12 @@ class ConsoleDisplay(Display):
 
     def show_forecast(self, forecast: list[dict]) -> None:
         print("\n--- Forecast ---")
-        for hour in forecast[:6]:
-            print(f"  {hour.get('time', '')}: {hour.get('temp', '')} - {hour.get('condition', '')}")
+        for hour in forecast[:4]:
+            print(f"  {hour.get('time', '')}: {hour.get('temp', '')} [{hour.get('condition', '')}]")
+        if forecast:
+            high, low = forecast[0].get("high"), forecast[0].get("low")
+            if high and low:
+                print(f"  Today: H:{high}  L:{low}")
         print("----------------")
 
     def show_alarm_active(self, label: str | None = None) -> None:
@@ -132,7 +150,10 @@ class ConsoleDisplay(Display):
         if data.weather_temp:
             self.show_weather(data.weather_temp, data.weather_condition or "")
         if data.alarm_active:
-            self.show_alarm_active(data.alarm_label)
+            if data.snooze_remaining is not None:
+                print(f" [SNOOZED {data.snooze_remaining} until {data.snooze_until_time}]", end="", flush=True)
+            else:
+                self.show_alarm_active(data.alarm_label)
         if data.has_unread_messages:
             print(" [*]", end="", flush=True)
 
@@ -144,6 +165,19 @@ class ConsoleDisplay(Display):
 
     def clear_message(self) -> None:
         pass  # Console doesn't need explicit clearing
+
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        elapsed_s = elapsed_ms // 1000
+        elapsed_str = f"{elapsed_s // 60}:{elapsed_s % 60:02d}"
+        suffix = f" / {duration_ms // 1000 // 60}:{(duration_ms // 1000) % 60:02d}" if duration_ms else ""
+        print(f"\r[Music] {track_name} ({track_num}/{total_tracks}) {elapsed_str}{suffix}", end="", flush=True)
 
 
 class WaveshareOLED(Display):
@@ -757,19 +791,49 @@ class WaveshareOLED(Display):
         pass
 
     def show_forecast(self, forecast: list[dict]) -> None:
-        """Display weather forecast (temporarily replaces main display)."""
+        """Display weather forecast with condition icons and high/low temperatures."""
         if not self._device:
             return
 
         from luma.core.render import canvas
 
+        col_w = self.WIDTH // 4  # 32px per column
+        icon_size = 16
+        icon_y = 11
+
         with canvas(self._device) as draw:
-            draw.text((0, 0), "Forecast:", font=self._font_medium, fill="white")
-            y = 14
-            for hour in forecast[:4]:
-                text = f"{hour.get('time', '')}: {hour.get('temp', '')} {hour.get('condition', '')[:10]}"
-                draw.text((0, y), text, font=self._font_small, fill="white")
-                y += 12
+            # Header
+            draw.text((0, 0), "Forecast", font=self._font_tiny, fill="white")
+
+            for i, slot in enumerate(forecast[:4]):
+                center_x = i * col_w + col_w // 2
+
+                # Weather icon centred in column
+                icon_type = self._get_weather_icon_type(
+                    slot.get("condition"), slot.get("hour", 12)
+                )
+                self._draw_weather_icon(
+                    draw, center_x - icon_size // 2, icon_y, icon_type, size=icon_size
+                )
+
+                # Time label
+                time_str = slot.get("time", "")
+                t_w = draw.textbbox((0, 0), time_str, font=self._font_tiny)[2]
+                draw.text((center_x - t_w // 2, 30), time_str, font=self._font_tiny, fill="white")
+
+                # Temperature
+                temp_str = slot.get("temp", "")
+                temp_w = draw.textbbox((0, 0), temp_str, font=self._font_tiny)[2]
+                draw.text((center_x - temp_w // 2, 41), temp_str, font=self._font_tiny, fill="white")
+
+            # Daily high / low at the bottom
+            high = forecast[0].get("high") if forecast else None
+            low = forecast[0].get("low") if forecast else None
+            if high and low:
+                draw.text((0, 54), f"H:{high}", font=self._font_tiny, fill="white")
+                low_str = f"L:{low}"
+                low_w = draw.textbbox((0, 0), low_str, font=self._font_tiny)[2]
+                draw.text((self.WIDTH - low_w, 54), low_str, font=self._font_tiny, fill="white")
 
     def show_alarm_active(self, label: str | None = None) -> None:
         """Display alarm active indicator."""
@@ -791,42 +855,55 @@ class WaveshareOLED(Display):
 
         with canvas(self._device) as draw:
             if data.alarm_active:
-                # Alarm mode - custom text flashing black/white
-                self._alarm_blink_state = not self._alarm_blink_state
+                if data.snooze_remaining is not None:
+                    # Snooze countdown mode
+                    # Row 1: "SNOOZED" label
+                    label = "SNOOZED"
+                    lw = draw.textbbox((0, 0), label, font=self._font_small)[2]
+                    draw.text(((self.WIDTH - lw) // 2, 2), label, font=self._font_small, fill="white")
 
-                if self._alarm_blink_state:
-                    # White background, black text
-                    bg_color = "white"
-                    text_color = "black"
+                    # Row 2: large MM:SS countdown
+                    cw = draw.textbbox((0, 0), data.snooze_remaining, font=self._font_time)[2]
+                    draw.text(((self.WIDTH - cw) // 2, 17), data.snooze_remaining, font=self._font_time, fill="white")
+
+                    # Row 3: "until X:XX AM"
+                    if data.snooze_until_time:
+                        until_str = f"until {data.snooze_until_time}"
+                        uw = draw.textbbox((0, 0), until_str, font=self._font_tiny)[2]
+                        draw.text(((self.WIDTH - uw) // 2, 52), until_str, font=self._font_tiny, fill="white")
                 else:
-                    # Black background, white text
-                    bg_color = "black"
-                    text_color = "white"
+                    # Alarm ringing mode - text flashing black/white
+                    self._alarm_blink_state = not self._alarm_blink_state
 
-                draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
+                    if self._alarm_blink_state:
+                        bg_color = "white"
+                        text_color = "black"
+                    else:
+                        bg_color = "black"
+                        text_color = "white"
 
-                # Split display text into two lines for better display
-                display_text = data.alarm_display_text or "Wake up Claire!"
-                words = display_text.split()
-                if len(words) >= 2:
-                    # Split roughly in half
-                    mid = len(words) // 2
-                    text1 = " ".join(words[:mid])
-                    text2 = " ".join(words[mid:])
-                else:
-                    text1 = display_text
-                    text2 = ""
+                    draw.rectangle([(0, 0), (self.WIDTH, self.HEIGHT)], fill=bg_color)
 
-                bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
-                x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
-                if text2:
-                    bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
-                    x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
-                    draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
-                    draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
-                else:
-                    # Single line, center vertically
-                    draw.text((x1, 24), text1, font=self._font_alarm, fill=text_color)
+                    # Split display text into two lines for better display
+                    display_text = data.alarm_display_text or "Wake up Claire!"
+                    words = display_text.split()
+                    if len(words) >= 2:
+                        mid = len(words) // 2
+                        text1 = " ".join(words[:mid])
+                        text2 = " ".join(words[mid:])
+                    else:
+                        text1 = display_text
+                        text2 = ""
+
+                    bbox1 = draw.textbbox((0, 0), text1, font=self._font_alarm)
+                    x1 = (self.WIDTH - (bbox1[2] - bbox1[0])) // 2
+                    if text2:
+                        bbox2 = draw.textbbox((0, 0), text2, font=self._font_alarm)
+                        x2 = (self.WIDTH - (bbox2[2] - bbox2[0])) // 2
+                        draw.text((x1, 12), text1, font=self._font_alarm, fill=text_color)
+                        draw.text((x2, 36), text2, font=self._font_alarm, fill=text_color)
+                    else:
+                        draw.text((x1, 24), text1, font=self._font_alarm, fill=text_color)
             else:
                 # Normal mode - time, date, weather, dog
                 # Time - large, centered, takes up top portion
@@ -912,6 +989,81 @@ class WaveshareOLED(Display):
         line_height = 12
         for i, line in enumerate(lines[:5]):  # Max 5 lines
             draw.text((x, y + i * line_height), line, font=font, fill="white")
+
+    def show_music_player(
+        self,
+        track_name: str,
+        track_num: int,
+        total_tracks: int,
+        elapsed_ms: int,
+        duration_ms: int | None = None,
+    ) -> None:
+        """Display music player screen with track info and progress."""
+        if not self._device:
+            return
+
+        from luma.core.render import canvas
+
+        # Strip file extension for display
+        display_name = track_name.rsplit(".", 1)[0] if "." in track_name else track_name
+
+        # Elapsed time string
+        elapsed_s = elapsed_ms // 1000
+        elapsed_str = f"{elapsed_s // 60}:{elapsed_s % 60:02d}"
+        if duration_ms is not None:
+            duration_s = duration_ms // 1000
+            time_str = f"{elapsed_str} / {duration_s // 60}:{duration_s % 60:02d}"
+        else:
+            time_str = elapsed_str
+
+        with canvas(self._device) as draw:
+            # Header row
+            draw.text((0, 0), "Now Playing", font=self._font_tiny, fill="white")
+
+            # Track name — truncate to fit 128px width using the small font
+            # Measure and shorten until it fits
+            name = display_name
+            while name:
+                bbox = draw.textbbox((0, 0), name, font=self._font_small)
+                if bbox[2] - bbox[0] <= self.WIDTH:
+                    break
+                name = name[:-1]
+            if name != display_name:
+                name = name[:-1] + "\u2026"  # ellipsis
+            draw.text((0, 11), name, font=self._font_small, fill="white")
+
+            # Track position
+            draw.text((0, 24), f"Track {track_num} of {total_tracks}", font=self._font_tiny, fill="white")
+
+            # Progress bar outline
+            bar_x, bar_y, bar_w, bar_h = 4, 35, 120, 6
+            draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], outline="white")
+
+            inner_w = bar_w - 2
+            if duration_ms and duration_ms > 0:
+                fill_w = int(min(elapsed_ms / duration_ms, 1.0) * inner_w)
+                if fill_w > 0:
+                    draw.rectangle(
+                        [bar_x + 1, bar_y + 1, bar_x + 1 + fill_w, bar_y + bar_h - 1],
+                        fill="white",
+                    )
+            else:
+                # Bouncing indicator when duration unknown
+                block_w = 20
+                period = inner_w - block_w
+                tick = (elapsed_ms // 300) % (period * 2)
+                pos = tick if tick <= period else period * 2 - tick
+                draw.rectangle(
+                    [bar_x + 1 + pos, bar_y + 1, bar_x + 1 + pos + block_w, bar_y + bar_h - 1],
+                    fill="white",
+                )
+
+            # Time display
+            draw.text((0, 44), time_str, font=self._font_tiny, fill="white")
+
+            # Button hints
+            draw.text((0, 55), "< Prev", font=self._font_tiny, fill="white")
+            draw.text((88, 55), "Next >", font=self._font_tiny, fill="white")
 
     def clear_message(self) -> None:
         """Clear message display and return to normal mode."""

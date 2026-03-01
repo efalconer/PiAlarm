@@ -22,6 +22,7 @@ class AudioService:
         self._playlist_index = 0
         self._playlist_mode = False
         self._paused = False
+        self._duration_cache: dict[str, int | None] = {}
 
     def initialize(self) -> bool:
         """Initialize pygame mixer for audio playback."""
@@ -218,6 +219,37 @@ class AudioService:
     def playlist_position(self) -> tuple[int, int]:
         """Get current playlist position (current_index, total_tracks)."""
         return (self._playlist_index + 1, len(self._playlist))
+
+    def get_position_ms(self) -> int:
+        """Get current playback position in milliseconds."""
+        if not self._initialized:
+            return 0
+        return max(0, pygame.mixer.music.get_pos())
+
+    def get_track_duration_ms(self, filename: str | None = None) -> int | None:
+        """Get duration of a track in milliseconds using mutagen (if available)."""
+        target = filename or self._current_file
+        if not target:
+            return None
+
+        if target in self._duration_cache:
+            return self._duration_cache[target]
+
+        filepath = MUSIC_DIR / target
+        if not filepath.exists():
+            return None
+
+        duration_ms = None
+        try:
+            from mutagen import File as MutagenFile
+            audio = MutagenFile(str(filepath))
+            if audio is not None and hasattr(audio, "info") and hasattr(audio.info, "length"):
+                duration_ms = int(audio.info.length * 1000)
+        except Exception as e:
+            logger.debug(f"Could not read duration for {target}: {e}")
+
+        self._duration_cache[target] = duration_ms
+        return duration_ms
 
     def delete_file(self, filename: str) -> bool:
         """Delete an MP3 file."""

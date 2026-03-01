@@ -23,6 +23,7 @@ class Button(Enum):
     DISMISS = 27
     FORECAST = 22
     MESSAGES = 23
+    MUSIC = 18
 
 
 class ButtonHandler:

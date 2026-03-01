@@ -241,6 +241,11 @@ class AlarmService:
         return self._snoozed_until is not None
 
     @property
+    def snoozed_until(self) -> datetime | None:
+        """Get the time the alarm will resume after snooze."""
+        return self._snoozed_until
+
+    @property
     def active_alarm(self) -> Alarm | None:
         """Get the currently active alarm."""
         return self._active_alarm
