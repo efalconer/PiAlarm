@@ -44,6 +44,7 @@ class PiAlarm:
         self._showing_forecast = False
         self._showing_message = False
         self._music_mode = False
+        self._no_messages_until: float = 0
 
     def _init_display(self):
         """Initialize the appropriate display based on config."""
@@ -182,9 +183,10 @@ class PiAlarm:
                 self._showing_message = True
                 self._showing_forecast = False  # Messages take priority over forecast
             else:
-                # No more messages - return to main screen
-                self._showing_message = False
-                self.display.clear_message()
+                # No unread messages - show notification briefly then revert
+                self.display.show_message("No new messages")
+                self._showing_message = True
+                self._no_messages_until = time.time() + 5
 
     def _on_music(self) -> None:
         """Handle music button press - start music player with all uploaded tracks."""
@@ -222,7 +224,12 @@ class PiAlarm:
                 self._update_music_display()
                 return
         elif self._showing_forecast or self._showing_message:
-            return  # Don't overwrite forecast/message display
+            if self._no_messages_until and time.time() >= self._no_messages_until:
+                self._showing_message = False
+                self._no_messages_until = 0
+                self.display.clear_message()
+            else:
+                return  # Don't overwrite forecast/message display
 
         time_data = self.time_service.get_display_data()
         weather_data = self.weather_service.get_display_data()
