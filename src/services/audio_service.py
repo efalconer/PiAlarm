@@ -3,6 +3,7 @@
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 
 import pygame
@@ -25,6 +26,7 @@ class AudioService:
         self._playlist_mode = False
         self._paused = False
         self._duration_cache: dict[str, int | None] = {}
+        self._track_started_at: float = 0
 
     def initialize(self) -> bool:
         """Initialize pygame mixer for audio playback."""
@@ -111,6 +113,7 @@ class AudioService:
                 pygame.mixer.music.set_volume(self._volume)
                 pygame.mixer.music.play()
                 self._current_file = filename
+                self._track_started_at = time.time()
                 logger.info(f"Playing track {self._playlist_index + 1}/{len(self._playlist)}: {filename}")
                 return True
             except pygame.error as e:
@@ -145,7 +148,7 @@ class AudioService:
         if not self._playlist_mode or not self._initialized:
             return
 
-        if not pygame.mixer.music.get_busy() and not self._paused:
+        if not pygame.mixer.music.get_busy() and not self._paused and time.time() - self._track_started_at > 3:
             with self._lock:
                 if not self._playlist_mode or not self._playlist:
                     return
