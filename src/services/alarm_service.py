@@ -2,6 +2,7 @@
 
 import sqlite3
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -55,6 +56,7 @@ class AlarmService:
         self.config = get_config()
         self.time_service = get_time_service()
         self.audio_service = get_audio_service()
+        self._lock = threading.Lock()
         self._snoozed_until: datetime | None = None
         self._active_alarm: Alarm | None = None
         self._alarm_triggered_at: datetime | None = None
@@ -168,42 +170,48 @@ class AlarmService:
 
     def check_alarms(self) -> Alarm | None:
         """Check if any alarm should trigger now. Called once per minute."""
-        now = self.time_service.now()
+        with self._lock:
+            now = self.time_service.now()
 
-        # Check for auto-dismiss (5 minutes without interaction)
-        if self._alarm_triggered_at and self._active_alarm and not self._snoozed_until:
-            elapsed = now - self._alarm_triggered_at
-            if elapsed >= timedelta(minutes=AUTO_DISMISS_MINUTES):
-                logger.info(f"Auto-dismissing alarm after {AUTO_DISMISS_MINUTES} minutes")
-                self.dismiss()
+            # Check for auto-dismiss (5 minutes without interaction)
+            if self._alarm_triggered_at and self._active_alarm and not self._snoozed_until:
+                elapsed = now - self._alarm_triggered_at
+                if elapsed >= timedelta(minutes=AUTO_DISMISS_MINUTES):
+                    logger.info(f"Auto-dismissing alarm after {AUTO_DISMISS_MINUTES} minutes")
+                    self._dismiss_locked()
+                    return None
+
+            # Skip all alarm checks if alarms are paused (vacation mode)
+            if self.config.alarms_paused:
                 return None
 
-        # Skip all alarm checks if alarms are paused (vacation mode)
-        if self.config.alarms_paused:
+            # Check if we're in snooze period
+            if self._snoozed_until and now < self._snoozed_until:
+                return None
+
+            # Clear snooze if time has passed
+            if self._snoozed_until and now >= self._snoozed_until:
+                self._snoozed_until = None
+                # Resume the snoozed alarm (skip vacation check -- snooze
+                # was started before pause, let it finish naturally)
+                if self._active_alarm:
+                    self._trigger_alarm(self._active_alarm)
+                    return self._active_alarm
+
+            # Don't trigger a new alarm if one is already active
+            if self._active_alarm is not None:
+                return None
+
+            # Check all enabled alarms
+            for alarm in self.get_all():
+                if not alarm.enabled:
+                    continue
+                if alarm.hour == now.hour and alarm.minute == now.minute:
+                    if now.weekday() in alarm.days or not alarm.days:
+                        self._trigger_alarm(alarm)
+                        return alarm
+
             return None
-
-        # Check if we're in snooze period
-        if self._snoozed_until and now < self._snoozed_until:
-            return None
-
-        # Clear snooze if time has passed
-        if self._snoozed_until and now >= self._snoozed_until:
-            self._snoozed_until = None
-            # Resume the snoozed alarm
-            if self._active_alarm:
-                self._trigger_alarm(self._active_alarm)
-                return self._active_alarm
-
-        # Check all enabled alarms
-        for alarm in self.get_all():
-            if not alarm.enabled:
-                continue
-            if alarm.hour == now.hour and alarm.minute == now.minute:
-                if now.weekday() in alarm.days or not alarm.days:
-                    self._trigger_alarm(alarm)
-                    return alarm
-
-        return None
 
     def _trigger_alarm(self, alarm: Alarm) -> None:
         """Trigger an alarm."""
@@ -216,14 +224,20 @@ class AlarmService:
 
     def snooze(self) -> None:
         """Snooze the current alarm."""
-        if self._active_alarm:
-            self.audio_service.stop()
-            snooze_minutes = self.config.snooze_duration_minutes
-            self._snoozed_until = self.time_service.now() + timedelta(minutes=snooze_minutes)
-            logger.info(f"Alarm snoozed for {snooze_minutes} minutes")
+        with self._lock:
+            if self._active_alarm:
+                self.audio_service.stop()
+                snooze_minutes = self.config.snooze_duration_minutes
+                self._snoozed_until = self.time_service.now() + timedelta(minutes=snooze_minutes)
+                logger.info(f"Alarm snoozed for {snooze_minutes} minutes")
 
     def dismiss(self) -> None:
         """Dismiss the current alarm."""
+        with self._lock:
+            self._dismiss_locked()
+
+    def _dismiss_locked(self) -> None:
+        """Dismiss the current alarm (must be called with _lock held)."""
         self.audio_service.stop()
         self._active_alarm = None
         self._snoozed_until = None

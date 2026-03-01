@@ -61,10 +61,13 @@
         <div class="form-group">
             <label for="web_pin">Web Interface PIN</label>
             <input type="password" id="web_pin" name="web_pin"
-                   value="{{ config.web_pin }}" placeholder="Leave empty to disable"
+                   value="" placeholder="{{ 'PIN is set — leave empty to keep current' if config.web_pin else 'Leave empty to disable' }}"
                    pattern="[0-9]*" inputmode="numeric">
             <p style="color: #666; font-size: 12px; margin-top: 5px;">
-                Numeric PIN to protect web access. Leave empty to disable protection.
+                Numeric PIN to protect web access. Leave empty to {{ 'keep current PIN' if config.web_pin else 'disable protection' }}.
+                {% if config.web_pin %}
+                To remove the PIN, enter a space and save.
+                {% endif %}
             </p>
         </div>
 

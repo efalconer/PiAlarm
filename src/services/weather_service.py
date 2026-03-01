@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import requests
 
 from src.config import get_config
+from src.services.time_service import get_time_service
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class WeatherService:
 
     def __init__(self):
         self.config = get_config()
+        self.time_service = get_time_service()
         self._current_weather: CurrentWeather | None = None
         self._forecast: list[ForecastHour] = []
         self._forecast_high: float | None = None
@@ -55,7 +57,7 @@ class WeatherService:
         """Check if cached data is still valid."""
         if self._last_fetch is None:
             return False
-        return datetime.now() - self._last_fetch < self._cache_duration
+        return self.time_service.now() - self._last_fetch < self._cache_duration
 
     def _get_api_key(self) -> str | None:
         """Get API key from config."""
@@ -99,9 +101,9 @@ class WeatherService:
                 humidity=current["humidity"],
                 wind_mph=current["wind_mph"],
                 feels_like_f=current["feelslike_f"],
-                last_updated=datetime.now(),
+                last_updated=self.time_service.now(),
             )
-            self._last_fetch = datetime.now()
+            self._last_fetch = self.time_service.now()
             logger.info(f"Weather updated: {self._current_weather.temp_f}°F, {self._current_weather.condition}")
             return self._current_weather
 
@@ -126,10 +128,11 @@ class WeatherService:
             data = response.json()
 
             forecast = []
-            now = datetime.now()
+            now = self.time_service.now()
             for hour_data in data["forecast"]["forecastday"][0]["hour"]:
                 hour_time = datetime.strptime(hour_data["time"], "%Y-%m-%d %H:%M")
-                if hour_time > now:
+                # Compare naive-to-naive (strip tz from now) since API returns local time
+                if hour_time > now.replace(tzinfo=None):
                     forecast.append(
                         ForecastHour(
                             time=hour_time,

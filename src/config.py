@@ -2,6 +2,7 @@
 
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ class Config:
 
     def __init__(self, config_path: Path = CONFIG_FILE):
         self.config_path = config_path
+        self._lock = threading.Lock()
         self._config: dict[str, Any] = {}
         self.load()
 
@@ -56,13 +58,15 @@ class Config:
 
     def set(self, key: str, value: Any) -> None:
         """Set a configuration value and save."""
-        self._config[key] = value
-        self.save()
+        with self._lock:
+            self._config[key] = value
+            self.save()
 
     def update(self, values: dict[str, Any]) -> None:
         """Update multiple configuration values and save."""
-        self._config.update(values)
-        self.save()
+        with self._lock:
+            self._config.update(values)
+            self.save()
 
     @property
     def weather_api_key(self) -> str:
