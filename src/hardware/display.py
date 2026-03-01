@@ -125,8 +125,12 @@ class ConsoleDisplay(Display):
 
     def show_forecast(self, forecast: list[dict]) -> None:
         print("\n--- Forecast ---")
-        for hour in forecast[:6]:
-            print(f"  {hour.get('time', '')}: {hour.get('temp', '')} - {hour.get('condition', '')}")
+        for hour in forecast[:4]:
+            print(f"  {hour.get('time', '')}: {hour.get('temp', '')} [{hour.get('condition', '')}]")
+        if forecast:
+            high, low = forecast[0].get("high"), forecast[0].get("low")
+            if high and low:
+                print(f"  Today: H:{high}  L:{low}")
         print("----------------")
 
     def show_alarm_active(self, label: str | None = None) -> None:
@@ -782,19 +786,49 @@ class WaveshareOLED(Display):
         pass
 
     def show_forecast(self, forecast: list[dict]) -> None:
-        """Display weather forecast (temporarily replaces main display)."""
+        """Display weather forecast with condition icons and high/low temperatures."""
         if not self._device:
             return
 
         from luma.core.render import canvas
 
+        col_w = self.WIDTH // 4  # 32px per column
+        icon_size = 16
+        icon_y = 11
+
         with canvas(self._device) as draw:
-            draw.text((0, 0), "Forecast:", font=self._font_medium, fill="white")
-            y = 14
-            for hour in forecast[:4]:
-                text = f"{hour.get('time', '')}: {hour.get('temp', '')} {hour.get('condition', '')[:10]}"
-                draw.text((0, y), text, font=self._font_small, fill="white")
-                y += 12
+            # Header
+            draw.text((0, 0), "Forecast", font=self._font_tiny, fill="white")
+
+            for i, slot in enumerate(forecast[:4]):
+                center_x = i * col_w + col_w // 2
+
+                # Weather icon centred in column
+                icon_type = self._get_weather_icon_type(
+                    slot.get("condition"), slot.get("hour", 12)
+                )
+                self._draw_weather_icon(
+                    draw, center_x - icon_size // 2, icon_y, icon_type, size=icon_size
+                )
+
+                # Time label
+                time_str = slot.get("time", "")
+                t_w = draw.textbbox((0, 0), time_str, font=self._font_tiny)[2]
+                draw.text((center_x - t_w // 2, 30), time_str, font=self._font_tiny, fill="white")
+
+                # Temperature
+                temp_str = slot.get("temp", "")
+                temp_w = draw.textbbox((0, 0), temp_str, font=self._font_tiny)[2]
+                draw.text((center_x - temp_w // 2, 41), temp_str, font=self._font_tiny, fill="white")
+
+            # Daily high / low at the bottom
+            high = forecast[0].get("high") if forecast else None
+            low = forecast[0].get("low") if forecast else None
+            if high and low:
+                draw.text((0, 54), f"H:{high}", font=self._font_tiny, fill="white")
+                low_str = f"L:{low}"
+                low_w = draw.textbbox((0, 0), low_str, font=self._font_tiny)[2]
+                draw.text((self.WIDTH - low_w, 54), low_str, font=self._font_tiny, fill="white")
 
     def show_alarm_active(self, label: str | None = None) -> None:
         """Display alarm active indicator."""

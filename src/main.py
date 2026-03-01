@@ -154,13 +154,17 @@ class PiAlarm:
         """Display the weather forecast."""
         forecast = self.weather_service.get_forecast()
         if forecast:
+            high, low = self.weather_service.get_forecast_high_low()
             forecast_data = [
                 {
-                    "time": h.time.strftime("%I %p"),
+                    "time": h.time.strftime("%I%p").lstrip("0"),
                     "temp": f"{int(h.temp_f)}°",
                     "condition": h.condition,
+                    "hour": h.time.hour,
+                    "high": f"{int(high)}°" if high is not None else None,
+                    "low": f"{int(low)}°" if low is not None else None,
                 }
-                for h in forecast[:6]
+                for h in forecast[:4]
             ]
             self.display.show_forecast(forecast_data)
 

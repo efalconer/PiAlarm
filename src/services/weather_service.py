@@ -46,6 +46,8 @@ class WeatherService:
         self.config = get_config()
         self._current_weather: CurrentWeather | None = None
         self._forecast: list[ForecastHour] = []
+        self._forecast_high: float | None = None
+        self._forecast_low: float | None = None
         self._last_fetch: datetime | None = None
         self._cache_duration = timedelta(hours=1)
 
@@ -139,6 +141,10 @@ class WeatherService:
                         )
                     )
 
+            day_data = data["forecast"]["forecastday"][0].get("day", {})
+            self._forecast_high = day_data.get("maxtemp_f")
+            self._forecast_low = day_data.get("mintemp_f")
+
             self._forecast = forecast
             logger.info(f"Forecast updated: {len(forecast)} hours")
             return forecast
@@ -156,6 +162,10 @@ class WeatherService:
     def get_forecast(self) -> list[ForecastHour]:
         """Get forecast (always fetches fresh data)."""
         return self.fetch_forecast()
+
+    def get_forecast_high_low(self) -> tuple[float | None, float | None]:
+        """Return today's forecast high and low in °F (None if not yet fetched)."""
+        return self._forecast_high, self._forecast_low
 
     def get_display_data(self) -> dict | None:
         """Get weather data formatted for display."""
