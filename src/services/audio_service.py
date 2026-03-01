@@ -93,9 +93,6 @@ class AudioService:
             self._playlist_index = start_index
             self._playlist_mode = True
 
-            # Set up end event for playlist advancement
-            pygame.mixer.music.set_endevent(pygame.USEREVENT)
-
             return self._play_current_track()
 
     def _play_current_track(self) -> bool:
@@ -145,16 +142,15 @@ class AudioService:
 
     def check_playlist_advance(self) -> None:
         """Check if we need to advance to the next track. Call this periodically."""
-        if not self._playlist_mode:
+        if not self._playlist_mode or not self._initialized:
             return
 
-        for event in pygame.event.get():
-            if event.type == pygame.USEREVENT:
-                with self._lock:
-                    if not self._playlist_mode or not self._playlist:
-                        return
-                    self._playlist_index += 1
-                    self._play_current_track()
+        if not pygame.mixer.music.get_busy() and not self._paused:
+            with self._lock:
+                if not self._playlist_mode or not self._playlist:
+                    return
+                self._playlist_index += 1
+                self._play_current_track()
 
     def stop(self) -> None:
         """Stop current playback."""
