@@ -33,6 +33,10 @@ class AudioService:
         if self._initialized:
             return True
 
+        # Force SDL to use ALSA so it routes through the dmix chain in
+        # /etc/asound.conf rather than falling back to a dummy driver.
+        os.environ.setdefault("SDL_AUDIODRIVER", "alsa")
+
         try:
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
             self._initialized = True
