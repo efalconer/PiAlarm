@@ -241,10 +241,12 @@ def delete_music(filename: str):
 
 @app.route("/music/<filename>/play", methods=["POST"])
 def play_music(filename: str):
-    """Play a single MP3 file."""
+    """Play all tracks as a playlist starting from the selected file."""
     audio_service = get_audio_service()
-    audio_service.play(filename, loop=False)
-    return redirect(url_for("music"))
+    sounds = audio_service.get_available_sounds()
+    start_index = sounds.index(filename) if filename in sounds else 0
+    audio_service.play_playlist(sounds, start_index=start_index)
+    return redirect(url_for("now_playing"))
 
 
 @app.route("/music/stop", methods=["POST"])
@@ -276,7 +278,7 @@ def next_track():
     """Skip to next track."""
     audio_service = get_audio_service()
     audio_service.next_track()
-    return redirect(url_for("music"))
+    return redirect(url_for("now_playing"))
 
 
 @app.route("/music/previous", methods=["POST"])
@@ -284,7 +286,7 @@ def previous_track():
     """Go to previous track."""
     audio_service = get_audio_service()
     audio_service.previous_track()
-    return redirect(url_for("music"))
+    return redirect(url_for("now_playing"))
 
 
 @app.route("/playlists/new", methods=["GET", "POST"])
@@ -344,6 +346,7 @@ def play_playlist(playlist_id: int):
 
     if playlist and playlist.tracks:
         audio_service.play_playlist(playlist.tracks)
+        return redirect(url_for("now_playing"))
 
     return redirect(url_for("music"))
 

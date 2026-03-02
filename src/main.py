@@ -216,6 +216,11 @@ class PiAlarm:
             self._showing_forecast = False
             self._showing_message = False
             self._music_mode = False
+        elif self.audio_service.is_playlist_mode and not self._music_mode:
+            # Playlist started from web or other source — enter music mode
+            self._music_mode = True
+            self._showing_forecast = False
+            self._showing_message = False
         elif self._music_mode:
             # Exit music mode automatically when the playlist finishes
             if not self.audio_service.is_playlist_mode and not self.audio_service.has_active_playback():
