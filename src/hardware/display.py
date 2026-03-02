@@ -554,17 +554,23 @@ class WaveshareOLED(Display):
                 draw.text((self.WIDTH - low_w, 54), low_str, font=self._font_tiny, fill="white")
 
     def show_5day_forecast(self, days: list[dict]) -> None:
-        """Display 5-day daily forecast: day name, condition icon, high and low temps."""
-        if not self._device:
+        """Display daily forecast: day name, condition icon, high and low temps."""
+        if not self._device or not days:
             return
 
         from luma.core.render import canvas
 
-        col_w = self.WIDTH // 5  # 25px per column
+        # Spread columns evenly across the display based on how many days were returned
+        n = min(len(days), 5)
+        col_w = self.WIDTH // n
         icon_size = 14
+        # Vertical layout: day=y0, icon=y11, high=y31, low=y43
+        icon_y = 11
+        high_y = icon_y + icon_size + 6  # 6px gap below icon
+        low_y = high_y + 12              # 12px below high
 
         with canvas(self._device) as draw:
-            for i, day in enumerate(days[:5]):
+            for i, day in enumerate(days[:n]):
                 center_x = i * col_w + col_w // 2
 
                 # Day abbreviation (e.g. "MON")
@@ -574,17 +580,17 @@ class WaveshareOLED(Display):
 
                 # Condition icon centred in column (daytime rendering)
                 icon_type = self._get_weather_icon_type(day.get("condition"), hour=12)
-                self._draw_weather_icon(draw, center_x - icon_size // 2, 11, icon_type, size=icon_size)
+                self._draw_weather_icon(draw, center_x - icon_size // 2, icon_y, icon_type, size=icon_size)
 
                 # High temp
                 high_str = day.get("high", "")
                 h_w = draw.textbbox((0, 0), high_str, font=self._font_tiny)[2]
-                draw.text((center_x - h_w // 2, 27), high_str, font=self._font_tiny, fill="white")
+                draw.text((center_x - h_w // 2, high_y), high_str, font=self._font_tiny, fill="white")
 
                 # Low temp
                 low_str = day.get("low", "")
                 l_w = draw.textbbox((0, 0), low_str, font=self._font_tiny)[2]
-                draw.text((center_x - l_w // 2, 38), low_str, font=self._font_tiny, fill="white")
+                draw.text((center_x - l_w // 2, low_y), low_str, font=self._font_tiny, fill="white")
 
     def show_alarm_active(self, label: str | None = None) -> None:
         """Display alarm active indicator."""
