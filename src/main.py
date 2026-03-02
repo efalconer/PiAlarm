@@ -131,14 +131,17 @@ class PiAlarm:
         self.alarm_service.snooze()
 
     def _on_dismiss(self) -> None:
-        """Handle dismiss button press."""
+        """Handle dismiss button press — always returns to main screen."""
+        logger.info("Dismiss button pressed")
         if self._music_mode:
-            logger.info("Dismiss pressed — stopping music player")
             self.audio_service.stop()
             self._music_mode = False
-        else:
-            logger.info("Dismiss button pressed")
+        elif self.alarm_service.is_alarm_active:
             self.alarm_service.dismiss()
+        self._showing_forecast = False
+        self._showing_message = False
+        self._no_messages_until = 0
+        self.display.clear_message()
 
     def _on_forecast(self) -> None:
         """Handle forecast button press - toggle forecast, or previous track in music mode."""
