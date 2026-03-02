@@ -7,7 +7,7 @@ A Raspberry Pi-based alarm clock with weather display and web configuration.
 - Raspberry Pi Zero 2
 - Adafruit I2S 3W Stereo Speaker Bonnet
 - Waveshare 2.42" OLED display (SSD1309, 128x64)
-- 4 momentary push buttons (snooze, dismiss, forecast, messages)
+- 5 momentary push buttons (snooze, dismiss, forecast, messages, music)
 
 ## Features
 
@@ -75,6 +75,7 @@ Connect momentary push buttons between GPIO and GND:
 | Dismiss  | GPIO 27  |
 | Forecast | GPIO 22  |
 | Messages | GPIO 23  |
+| Music    | GPIO 5   |
 
 ### 6. Add alarm sounds
 
