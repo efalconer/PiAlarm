@@ -72,6 +72,8 @@ Weather requires a WeatherAPI.com API key. Configure via web interface at `/sett
 - GPIO 17: Snooze button
 - GPIO 27: Dismiss button
 - GPIO 22: Forecast button
+- GPIO 23: Messages button
+- GPIO 5: Music button
 
 Buttons use pull-up resistors (connect button between GPIO and GND).
 
