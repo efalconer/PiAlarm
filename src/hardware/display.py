@@ -63,6 +63,11 @@ class Display(ABC):
         pass
 
     @abstractmethod
+    def show_5day_forecast(self, days: list[dict]) -> None:
+        """Display 5-day daily forecast with high/low and condition icon."""
+        pass
+
+    @abstractmethod
     def show_alarm_active(self, label: str | None = None) -> None:
         """Display alarm active indicator."""
         pass
@@ -134,6 +139,12 @@ class ConsoleDisplay(Display):
             if high and low:
                 print(f"  Today: H:{high}  L:{low}")
         print("----------------")
+
+    def show_5day_forecast(self, days: list[dict]) -> None:
+        print("\n--- 5-Day Forecast ---")
+        for day in days:
+            print(f"  {day.get('day', '')}: H:{day.get('high', '')} L:{day.get('low', '')} [{day.get('condition', '')}]")
+        print("---------------------")
 
     def show_alarm_active(self, label: str | None = None) -> None:
         print(f" [{label or 'Wake up Claire!'}]", end="", flush=True)
@@ -541,6 +552,39 @@ class WaveshareOLED(Display):
                 low_str = f"L:{low}"
                 low_w = draw.textbbox((0, 0), low_str, font=self._font_tiny)[2]
                 draw.text((self.WIDTH - low_w, 54), low_str, font=self._font_tiny, fill="white")
+
+    def show_5day_forecast(self, days: list[dict]) -> None:
+        """Display 5-day daily forecast: day name, condition icon, high and low temps."""
+        if not self._device:
+            return
+
+        from luma.core.render import canvas
+
+        col_w = self.WIDTH // 5  # 25px per column
+        icon_size = 14
+
+        with canvas(self._device) as draw:
+            for i, day in enumerate(days[:5]):
+                center_x = i * col_w + col_w // 2
+
+                # Day abbreviation (e.g. "MON")
+                day_str = day.get("day", "")
+                d_w = draw.textbbox((0, 0), day_str, font=self._font_tiny)[2]
+                draw.text((center_x - d_w // 2, 0), day_str, font=self._font_tiny, fill="white")
+
+                # Condition icon centred in column (daytime rendering)
+                icon_type = self._get_weather_icon_type(day.get("condition"), hour=12)
+                self._draw_weather_icon(draw, center_x - icon_size // 2, 11, icon_type, size=icon_size)
+
+                # High temp
+                high_str = day.get("high", "")
+                h_w = draw.textbbox((0, 0), high_str, font=self._font_tiny)[2]
+                draw.text((center_x - h_w // 2, 27), high_str, font=self._font_tiny, fill="white")
+
+                # Low temp
+                low_str = day.get("low", "")
+                l_w = draw.textbbox((0, 0), low_str, font=self._font_tiny)[2]
+                draw.text((center_x - l_w // 2, 38), low_str, font=self._font_tiny, fill="white")
 
     def show_alarm_active(self, label: str | None = None) -> None:
         """Display alarm active indicator."""

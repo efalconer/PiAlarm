@@ -41,7 +41,7 @@ class PiAlarm:
         self._web_thread: threading.Thread | None = None
         self._last_weather_update = 0
         self._last_alarm_check = -1
-        self._showing_forecast = False
+        self._forecast_page = 0  # 0=off, 1=hourly, 2=5-day
         self._showing_message = False
         self._music_mode = False
         self._no_messages_until: float = 0
@@ -138,24 +138,27 @@ class PiAlarm:
             self._music_mode = False
         elif self.alarm_service.is_alarm_active:
             self.alarm_service.dismiss()
-        self._showing_forecast = False
+        self._forecast_page = 0
         self._showing_message = False
         self._no_messages_until = 0
         self.display.clear_message()
 
     def _on_forecast(self) -> None:
-        """Handle forecast button press - toggle forecast, or previous track in music mode."""
+        """Handle forecast button press - cycle forecast pages, or previous track in music mode."""
         if self._music_mode:
             logger.info("Forecast button pressed — previous track")
             self.audio_service.previous_track()
         else:
-            logger.info("Forecast button pressed")
-            self._showing_forecast = not self._showing_forecast
-            if self._showing_forecast:
+            self._forecast_page = (self._forecast_page + 1) % 3
+            logger.info(f"Forecast button pressed — page {self._forecast_page}")
+            if self._forecast_page == 1:
+                self._showing_message = False
                 self._show_forecast()
+            elif self._forecast_page == 2:
+                self._show_5day_forecast()
 
     def _show_forecast(self) -> None:
-        """Display the weather forecast."""
+        """Display the hourly forecast."""
         forecast = self.weather_service.get_forecast()
         if forecast:
             high, low = self.weather_service.get_forecast_high_low()
@@ -172,6 +175,23 @@ class PiAlarm:
             ]
             self.display.show_forecast(forecast_data)
 
+    def _show_5day_forecast(self) -> None:
+        """Display the 5-day daily forecast."""
+        days = self.weather_service.get_5day_forecast()
+        if not days:
+            self._forecast_page = 0
+            return
+        days_data = [
+            {
+                "day": d.date.strftime("%a").upper(),
+                "high": f"{int(d.high_f)}°",
+                "low": f"{int(d.low_f)}°",
+                "condition": d.condition,
+            }
+            for d in days[:5]
+        ]
+        self.display.show_5day_forecast(days_data)
+
     def _on_messages(self) -> None:
         """Handle messages button press - next track in music mode, otherwise cycle messages."""
         if self._music_mode:
@@ -184,7 +204,7 @@ class PiAlarm:
                 self.message_service.mark_as_read(message.id)
                 self.display.show_message(message.text)
                 self._showing_message = True
-                self._showing_forecast = False  # Messages take priority over forecast
+                self._forecast_page = 0  # Messages take priority over forecast
             else:
                 # No unread messages - show notification briefly then revert
                 self.display.show_message("No new messages")
@@ -198,7 +218,7 @@ class PiAlarm:
         if not tracks:
             logger.warning("No music files found in music directory")
             return
-        self._showing_forecast = False
+        self._forecast_page = 0
         self._showing_message = False
         self._music_mode = True
         self.audio_service.play_playlist(tracks, start_index=0)
@@ -216,13 +236,13 @@ class PiAlarm:
         """Update display with current data."""
         # Alarm takes priority over everything
         if self.alarm_service.is_alarm_active:
-            self._showing_forecast = False
+            self._forecast_page = 0
             self._showing_message = False
             self._music_mode = False
         elif self.audio_service.is_playlist_mode and not self._music_mode:
             # Playlist started from web or other source — enter music mode
             self._music_mode = True
-            self._showing_forecast = False
+            self._forecast_page = 0
             self._showing_message = False
         elif self._music_mode:
             # Exit music mode automatically when the playlist finishes
@@ -231,10 +251,11 @@ class PiAlarm:
             else:
                 self._update_music_display()
                 return
-        elif self._showing_forecast or self._showing_message:
+        elif self._forecast_page > 0 or self._showing_message:
             if self._no_messages_until and time.time() >= self._no_messages_until:
                 self._showing_message = False
                 self._no_messages_until = 0
+                self._forecast_page = 0
                 self.display.clear_message()
             else:
                 return  # Don't overwrite forecast/message display

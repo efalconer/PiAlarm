@@ -40,6 +40,16 @@ class ForecastHour:
     chance_of_rain: int
 
 
+@dataclass
+class ForecastDay:
+    """Daily forecast data."""
+
+    date: datetime
+    high_f: float
+    low_f: float
+    condition: str
+
+
 class WeatherService:
     """Fetches and caches weather data from WeatherAPI.com."""
 
@@ -50,6 +60,7 @@ class WeatherService:
         self._forecast: list[ForecastHour] = []
         self._forecast_high: float | None = None
         self._forecast_low: float | None = None
+        self._5day_forecast: list[ForecastDay] = []
         self._last_fetch: datetime | None = None
         self._cache_duration = timedelta(hours=1)
 
@@ -121,7 +132,7 @@ class WeatherService:
         try:
             response = requests.get(
                 f"{WEATHER_API_BASE}/forecast.json",
-                params={"key": api_key, "q": location, "days": 1},
+                params={"key": api_key, "q": location, "days": 5},
                 timeout=10,
             )
             response.raise_for_status()
@@ -148,8 +159,18 @@ class WeatherService:
             self._forecast_high = day_data.get("maxtemp_f")
             self._forecast_low = day_data.get("mintemp_f")
 
+            self._5day_forecast = [
+                ForecastDay(
+                    date=datetime.strptime(entry["date"], "%Y-%m-%d"),
+                    high_f=entry["day"]["maxtemp_f"],
+                    low_f=entry["day"]["mintemp_f"],
+                    condition=entry["day"]["condition"]["text"],
+                )
+                for entry in data["forecast"]["forecastday"]
+            ]
+
             self._forecast = forecast
-            logger.info(f"Forecast updated: {len(forecast)} hours")
+            logger.info(f"Forecast updated: {len(forecast)} hours, {len(self._5day_forecast)} days")
             return forecast
 
         except requests.RequestException as e:
@@ -169,6 +190,10 @@ class WeatherService:
     def get_forecast_high_low(self) -> tuple[float | None, float | None]:
         """Return today's forecast high and low in °F (None if not yet fetched)."""
         return self._forecast_high, self._forecast_low
+
+    def get_5day_forecast(self) -> list[ForecastDay]:
+        """Return the cached 5-day daily forecast."""
+        return self._5day_forecast
 
     def get_display_data(self) -> dict | None:
         """Get weather data formatted for display."""
