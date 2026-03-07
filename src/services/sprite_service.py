@@ -66,17 +66,24 @@ class Sprite:
         return any(tr.contains(hour) for tr in self.time_ranges)
 
 
+@dataclass
+class Theme:
+    """Represents a named collection of sprites."""
+    id: str
+    name: str
+    sprites: dict[str, Sprite] = field(default_factory=dict)
+
+
 class SpriteService:
-    """Manages sprites with JSON persistence."""
+    """Manages sprite themes with JSON persistence."""
 
     def __init__(self):
-        self._sprites: dict[str, Sprite] = {}
-        self._default_activity: str = "sleeping"
-        self._version: int = 1
+        self._themes: dict[str, Theme] = {}
+        self._active_theme_id: str = "default"
         self._load()
 
     def _load(self) -> None:
-        """Load sprites from JSON file, initializing with defaults if needed."""
+        """Load themes from JSON file, initializing with defaults if needed."""
         if not SPRITES_FILE.exists():
             logger.info("No sprites file found, initializing with default sprites")
             self._initialize_defaults()
@@ -86,45 +93,83 @@ class SpriteService:
             with open(SPRITES_FILE) as f:
                 data = json.load(f)
 
-            self._version = data.get("version", 1)
-            self._default_activity = data.get("default_activity", "sleeping")
+            version = data.get("version", 1)
 
-            sprites_data = data.get("sprites", {})
-            for sprite_id, sprite_data in sprites_data.items():
-                self._sprites[sprite_id] = Sprite.from_dict(sprite_id, sprite_data)
+            if version == 1:
+                self._migrate_v1(data)
+            else:
+                self._load_v2(data)
 
-            logger.info(f"Loaded {len(self._sprites)} sprites")
         except Exception as e:
             logger.error(f"Failed to load sprites: {e}")
-            self._sprites = {}
+            self._initialize_defaults()
+
+    def _load_v2(self, data: dict) -> None:
+        """Load v2 format (themes)."""
+        self._active_theme_id = data.get("active_theme", "default")
+        themes_data = data.get("themes", {})
+
+        for theme_id, theme_data in themes_data.items():
+            sprites = {}
+            for sprite_id, sprite_data in theme_data.get("sprites", {}).items():
+                sprites[sprite_id] = Sprite.from_dict(sprite_id, sprite_data)
+            self._themes[theme_id] = Theme(
+                id=theme_id,
+                name=theme_data.get("name", theme_id),
+                sprites=sprites,
+            )
+
+        # Ensure active theme exists
+        if self._active_theme_id not in self._themes and self._themes:
+            self._active_theme_id = next(iter(self._themes))
+
+        logger.info(f"Loaded {len(self._themes)} theme(s)")
+
+    def _migrate_v1(self, data: dict) -> None:
+        """Migrate v1 format (flat sprites) to v2 (themed)."""
+        logger.info("Migrating sprites from v1 to v2 format")
+        sprites = {}
+        for sprite_id, sprite_data in data.get("sprites", {}).items():
+            sprites[sprite_id] = Sprite.from_dict(sprite_id, sprite_data)
+
+        self._themes["default"] = Theme(id="default", name="Default", sprites=sprites)
+        self._active_theme_id = "default"
+        self._save()
+        logger.info("Migration complete")
 
     def _save(self) -> None:
-        """Save sprites to JSON file."""
+        """Save themes to JSON file."""
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
         data = {
-            "version": self._version,
-            "default_activity": self._default_activity,
-            "sprites": {
-                sprite_id: sprite.to_dict()
-                for sprite_id, sprite in self._sprites.items()
+            "version": 2,
+            "active_theme": self._active_theme_id,
+            "themes": {
+                theme_id: {
+                    "name": theme.name,
+                    "sprites": {
+                        sprite_id: sprite.to_dict()
+                        for sprite_id, sprite in theme.sprites.items()
+                    },
+                }
+                for theme_id, theme in self._themes.items()
             },
         }
 
         try:
             with open(SPRITES_FILE, "w") as f:
                 json.dump(data, f, indent=2)
-            logger.info(f"Saved {len(self._sprites)} sprites")
         except Exception as e:
             logger.error(f"Failed to save sprites: {e}")
 
     def _initialize_defaults(self) -> None:
-        """Initialize with default sprites."""
+        """Initialize with the default theme and default sprites."""
         defaults = self._get_default_sprites()
-        for sprite in defaults:
-            self._sprites[sprite.id] = sprite
+        sprites = {s.id: s for s in defaults}
+        self._themes["default"] = Theme(id="default", name="Default", sprites=sprites)
+        self._active_theme_id = "default"
         self._save()
-        logger.info(f"Initialized {len(defaults)} default sprites")
+        logger.info(f"Initialized default theme with {len(defaults)} sprites")
 
     def _get_default_sprites(self) -> list[Sprite]:
         """Get the default hardcoded sprites with their time ranges."""
@@ -403,75 +448,159 @@ class SpriteService:
             ),
         ]
 
-    def get_all(self) -> list[Sprite]:
-        """Get all sprites."""
-        return list(self._sprites.values())
+    # --- Theme management ---
 
-    def get_by_id(self, sprite_id: str) -> Sprite | None:
-        """Get a sprite by its ID."""
-        return self._sprites.get(sprite_id)
+    def get_themes(self) -> list[Theme]:
+        """Get all themes."""
+        return list(self._themes.values())
 
-    def create(self, sprite: Sprite) -> Sprite:
-        """Create a new sprite."""
-        # Generate ID from name if not provided or already exists
+    def get_theme(self, theme_id: str) -> Theme | None:
+        """Get a theme by ID."""
+        return self._themes.get(theme_id)
+
+    @property
+    def active_theme_id(self) -> str:
+        """Get the active theme ID."""
+        return self._active_theme_id
+
+    def set_active_theme(self, theme_id: str) -> bool:
+        """Set the active theme. Returns False if theme not found."""
+        if theme_id not in self._themes:
+            return False
+        self._active_theme_id = theme_id
+        self._save()
+        logger.info(f"Active theme set to: {theme_id}")
+        return True
+
+    def create_theme(self, name: str) -> Theme:
+        """Create a new empty theme."""
+        base_id = self._slugify(name)
+        theme_id = base_id
+        counter = 1
+        while theme_id in self._themes:
+            theme_id = f"{base_id}_{counter}"
+            counter += 1
+
+        theme = Theme(id=theme_id, name=name, sprites={})
+        self._themes[theme_id] = theme
+        self._save()
+        logger.info(f"Created theme: {theme_id}")
+        return theme
+
+    def rename_theme(self, theme_id: str, new_name: str) -> bool:
+        """Rename a theme. Returns False if not found."""
+        if theme_id not in self._themes:
+            return False
+        self._themes[theme_id].name = new_name
+        self._save()
+        logger.info(f"Renamed theme {theme_id} to: {new_name}")
+        return True
+
+    def delete_theme(self, theme_id: str) -> bool:
+        """Delete a theme. Cannot delete the last remaining theme."""
+        if theme_id not in self._themes:
+            return False
+        if len(self._themes) <= 1:
+            return False  # Refuse to delete the last theme
+
+        del self._themes[theme_id]
+        if self._active_theme_id == theme_id:
+            self._active_theme_id = next(iter(self._themes))
+        self._save()
+        logger.info(f"Deleted theme: {theme_id}")
+        return True
+
+    def duplicate_theme(self, theme_id: str, new_name: str) -> Theme | None:
+        """Duplicate an existing theme with all its sprites."""
+        source = self._themes.get(theme_id)
+        if not source:
+            return None
+
+        new_theme = self.create_theme(new_name)
+        for sprite_id, sprite in source.sprites.items():
+            new_theme.sprites[sprite_id] = Sprite(
+                id=sprite_id,
+                name=sprite.name,
+                pixels=list(sprite.pixels),
+                time_ranges=[TimeRange(tr.start, tr.end) for tr in sprite.time_ranges],
+            )
+        self._save()
+        logger.info(f"Duplicated theme {theme_id} as: {new_theme.id}")
+        return new_theme
+
+    def _resolve_theme(self, theme_id: str | None) -> Theme | None:
+        """Resolve theme_id to a Theme, defaulting to the active theme."""
+        if theme_id is None:
+            return self._themes.get(self._active_theme_id)
+        return self._themes.get(theme_id)
+
+    # --- Sprite management (scoped to a theme) ---
+
+    def get_all(self, theme_id: str | None = None) -> list[Sprite]:
+        """Get all sprites in the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        return list(theme.sprites.values()) if theme else []
+
+    def get_by_id(self, sprite_id: str, theme_id: str | None = None) -> Sprite | None:
+        """Get a sprite by ID from the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        return theme.sprites.get(sprite_id) if theme else None
+
+    def create(self, sprite: Sprite, theme_id: str | None = None) -> Sprite:
+        """Create a new sprite in the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        if not theme:
+            raise ValueError(f"Theme not found: {theme_id or self._active_theme_id}")
+
         base_id = sprite.id or self._slugify(sprite.name)
         sprite_id = base_id
         counter = 1
-        while sprite_id in self._sprites:
+        while sprite_id in theme.sprites:
             sprite_id = f"{base_id}_{counter}"
             counter += 1
 
         sprite.id = sprite_id
-        self._sprites[sprite_id] = sprite
+        theme.sprites[sprite_id] = sprite
         self._save()
-        logger.info(f"Created sprite: {sprite_id}")
+        logger.info(f"Created sprite {sprite_id} in theme {theme.id}")
         return sprite
 
-    def update(self, sprite: Sprite) -> bool:
-        """Update an existing sprite."""
-        if sprite.id not in self._sprites:
+    def update(self, sprite: Sprite, theme_id: str | None = None) -> bool:
+        """Update an existing sprite in the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        if not theme or sprite.id not in theme.sprites:
             return False
 
-        self._sprites[sprite.id] = sprite
+        theme.sprites[sprite.id] = sprite
         self._save()
-        logger.info(f"Updated sprite: {sprite.id}")
+        logger.info(f"Updated sprite {sprite.id} in theme {theme.id}")
         return True
 
-    def delete(self, sprite_id: str) -> bool:
-        """Delete a sprite."""
-        if sprite_id not in self._sprites:
+    def delete(self, sprite_id: str, theme_id: str | None = None) -> bool:
+        """Delete a sprite from the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        if not theme or sprite_id not in theme.sprites:
             return False
 
-        del self._sprites[sprite_id]
+        del theme.sprites[sprite_id]
         self._save()
-        logger.info(f"Deleted sprite: {sprite_id}")
+        logger.info(f"Deleted sprite {sprite_id} from theme {theme.id}")
         return True
 
-    def get_active_sprite(self, hour: int) -> Sprite | None:
-        """Get the sprite that should be active at the given hour.
-
-        Returns the first matching sprite based on time ranges.
-        """
-        for sprite in self._sprites.values():
+    def get_active_sprite(self, hour: int, theme_id: str | None = None) -> Sprite | None:
+        """Get the sprite active at the given hour from the given (or active) theme."""
+        theme = self._resolve_theme(theme_id)
+        if not theme:
+            return None
+        for sprite in theme.sprites.values():
             if sprite.is_active_at(hour):
                 return sprite
         return None
 
-    def get_sprite_pixels(self, sprite_id: str) -> list[tuple[int, int]] | None:
+    def get_sprite_pixels(self, sprite_id: str, theme_id: str | None = None) -> list[tuple[int, int]] | None:
         """Get pixel coordinates for a sprite."""
-        sprite = self.get_by_id(sprite_id)
+        sprite = self.get_by_id(sprite_id, theme_id)
         return sprite.pixels if sprite else None
-
-    @property
-    def default_activity(self) -> str:
-        """Get the default activity name."""
-        return self._default_activity
-
-    @default_activity.setter
-    def default_activity(self, value: str) -> None:
-        """Set the default activity name."""
-        self._default_activity = value
-        self._save()
 
     @staticmethod
     def _slugify(name: str) -> str:
@@ -480,7 +609,7 @@ class SpriteService:
         slug = name.lower()
         slug = re.sub(r'[^\w\s-]', '', slug)
         slug = re.sub(r'[-\s]+', '_', slug)
-        return slug.strip('_') or "sprite"
+        return slug.strip('_') or "theme"
 
 
 # Global instance

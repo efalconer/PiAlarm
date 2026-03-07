@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Edit' if sprite else 'New' }} Sprite - PiAlarm{% endblock %}
 {% block content %}
-<h1>{{ 'Edit' if sprite else 'New' }} Sprite</h1>
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+    <a href="{{ url_for('list_theme_sprites', theme_id=theme.id) }}" style="color: #888; text-decoration: none; font-size: 14px;">&#8592; {{ theme.name }}</a>
+    <h1 style="margin: 0;">{{ 'Edit' if sprite else 'New' }} Sprite</h1>
+</div>
 
 <form method="POST" id="sprite-form">
     <div class="card">
@@ -82,7 +85,7 @@
 
     <div style="display: flex; gap: 10px;">
         <button type="submit" class="btn">Save Sprite</button>
-        <a href="{{ url_for('list_sprites') }}" class="btn btn-secondary">Cancel</a>
+        <a href="{{ url_for('list_theme_sprites', theme_id=theme.id) }}" class="btn btn-secondary">Cancel</a>
     </div>
 </form>
 {% endblock %}

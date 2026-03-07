@@ -13,7 +13,7 @@ from src.services.audio_service import get_audio_service
 from src.services.weather_service import get_weather_service
 from src.services.time_service import get_time_service
 from src.services.playlist_service import get_playlist_service, Playlist
-from src.services.sprite_service import get_sprite_service, Sprite, TimeRange
+from src.services.sprite_service import get_sprite_service, Sprite, TimeRange, Theme
 from src.services.message_service import get_message_service
 from src.hardware.buttons import get_button_handler, Button
 
@@ -391,18 +391,96 @@ def settings():
 
 @app.route("/sprites")
 def list_sprites():
-    """List all sprites."""
+    """Redirect to the active theme's sprite list."""
     sprite_service = get_sprite_service()
-    return render_template("sprites.html", sprites=sprite_service.get_all())
+    return redirect(url_for("list_theme_sprites", theme_id=sprite_service.active_theme_id))
 
 
-@app.route("/sprites/new", methods=["GET", "POST"])
-def new_sprite():
-    """Create a new sprite."""
+# --- Theme routes ---
+
+@app.route("/themes")
+def list_themes():
+    """List all sprite themes."""
+    sprite_service = get_sprite_service()
+    themes = sprite_service.get_themes()
+    # Attach sprite counts for display
+    theme_info = [
+        {"theme": t, "sprite_count": len(t.sprites), "is_active": t.id == sprite_service.active_theme_id}
+        for t in themes
+    ]
+    return render_template("themes.html", theme_info=theme_info, active_theme_id=sprite_service.active_theme_id)
+
+
+@app.route("/themes/new", methods=["POST"])
+def new_theme():
+    """Create a new theme."""
+    sprite_service = get_sprite_service()
+    name = request.form.get("name", "New Theme").strip() or "New Theme"
+    theme = sprite_service.create_theme(name)
+    return redirect(url_for("list_theme_sprites", theme_id=theme.id))
+
+
+@app.route("/themes/<theme_id>/activate", methods=["POST"])
+def activate_theme(theme_id: str):
+    """Set a theme as the active theme."""
+    sprite_service = get_sprite_service()
+    sprite_service.set_active_theme(theme_id)
+    return redirect(url_for("list_themes"))
+
+
+@app.route("/themes/<theme_id>/rename", methods=["POST"])
+def rename_theme(theme_id: str):
+    """Rename a theme."""
+    sprite_service = get_sprite_service()
+    new_name = request.form.get("name", "").strip()
+    if new_name:
+        sprite_service.rename_theme(theme_id, new_name)
+    return redirect(url_for("list_themes"))
+
+
+@app.route("/themes/<theme_id>/duplicate", methods=["POST"])
+def duplicate_theme(theme_id: str):
+    """Duplicate a theme."""
+    sprite_service = get_sprite_service()
+    source = sprite_service.get_theme(theme_id)
+    new_name = request.form.get("name", "").strip()
+    if not new_name:
+        new_name = f"{source.name} Copy" if source else "New Theme"
+    sprite_service.duplicate_theme(theme_id, new_name)
+    return redirect(url_for("list_themes"))
+
+
+@app.route("/themes/<theme_id>/delete", methods=["POST"])
+def delete_theme(theme_id: str):
+    """Delete a theme (cannot delete the last one)."""
+    sprite_service = get_sprite_service()
+    sprite_service.delete_theme(theme_id)
+    return redirect(url_for("list_themes"))
+
+
+# --- Theme-scoped sprite routes ---
+
+@app.route("/themes/<theme_id>/sprites")
+def list_theme_sprites(theme_id: str):
+    """List all sprites in a theme."""
+    sprite_service = get_sprite_service()
+    theme = sprite_service.get_theme(theme_id)
+    if not theme:
+        return redirect(url_for("list_themes"))
+    sprites = sprite_service.get_all(theme_id=theme_id)
+    is_active = theme_id == sprite_service.active_theme_id
+    return render_template("sprites.html", sprites=sprites, theme=theme, is_active=is_active)
+
+
+@app.route("/themes/<theme_id>/sprites/new", methods=["GET", "POST"])
+def new_sprite(theme_id: str):
+    """Create a new sprite in a theme."""
+    sprite_service = get_sprite_service()
+    theme = sprite_service.get_theme(theme_id)
+    if not theme:
+        return redirect(url_for("list_themes"))
+
     if request.method == "POST":
-        sprite_service = get_sprite_service()
-
-        # Parse pixels from JSON string
         pixels_json = request.form.get("pixels", "[]")
         try:
             pixels_list = json.loads(pixels_json)
@@ -410,7 +488,6 @@ def new_sprite():
         except json.JSONDecodeError:
             pixels = []
 
-        # Parse time ranges from JSON string
         time_ranges_json = request.form.get("time_ranges", "[]")
         try:
             time_ranges_list = json.loads(time_ranges_json)
@@ -419,28 +496,30 @@ def new_sprite():
             time_ranges = []
 
         sprite = Sprite(
-            id="",  # Will be generated
+            id="",
             name=request.form.get("name", "New Sprite"),
             pixels=pixels,
             time_ranges=time_ranges,
         )
-        sprite_service.create(sprite)
-        return redirect(url_for("list_sprites"))
+        sprite_service.create(sprite, theme_id=theme_id)
+        return redirect(url_for("list_theme_sprites", theme_id=theme_id))
 
-    return render_template("sprite_editor.html", sprite=None)
+    return render_template("sprite_editor.html", sprite=None, theme=theme)
 
 
-@app.route("/sprites/<sprite_id>/edit", methods=["GET", "POST"])
-def edit_sprite(sprite_id: str):
-    """Edit an existing sprite."""
+@app.route("/themes/<theme_id>/sprites/<sprite_id>/edit", methods=["GET", "POST"])
+def edit_sprite(theme_id: str, sprite_id: str):
+    """Edit an existing sprite in a theme."""
     sprite_service = get_sprite_service()
-    sprite = sprite_service.get_by_id(sprite_id)
+    theme = sprite_service.get_theme(theme_id)
+    if not theme:
+        return redirect(url_for("list_themes"))
 
+    sprite = sprite_service.get_by_id(sprite_id, theme_id=theme_id)
     if not sprite:
-        return redirect(url_for("list_sprites"))
+        return redirect(url_for("list_theme_sprites", theme_id=theme_id))
 
     if request.method == "POST":
-        # Parse pixels from JSON string
         pixels_json = request.form.get("pixels", "[]")
         try:
             pixels_list = json.loads(pixels_json)
@@ -448,7 +527,6 @@ def edit_sprite(sprite_id: str):
         except json.JSONDecodeError:
             pixels = sprite.pixels
 
-        # Parse time ranges from JSON string
         time_ranges_json = request.form.get("time_ranges", "[]")
         try:
             time_ranges_list = json.loads(time_ranges_json)
@@ -459,28 +537,27 @@ def edit_sprite(sprite_id: str):
         sprite.name = request.form.get("name", sprite.name)
         sprite.pixels = pixels
         sprite.time_ranges = time_ranges
-        sprite_service.update(sprite)
-        return redirect(url_for("list_sprites"))
+        sprite_service.update(sprite, theme_id=theme_id)
+        return redirect(url_for("list_theme_sprites", theme_id=theme_id))
 
-    # Prepare serializable data for template
     sprite_data = {
         "pixels": [[x, y] for x, y in sprite.pixels],
         "time_ranges": [tr.to_dict() for tr in sprite.time_ranges],
     }
-    return render_template("sprite_editor.html", sprite=sprite, sprite_data=sprite_data)
+    return render_template("sprite_editor.html", sprite=sprite, sprite_data=sprite_data, theme=theme)
 
 
-@app.route("/sprites/<sprite_id>/delete", methods=["POST"])
-def delete_sprite(sprite_id: str):
-    """Delete a sprite."""
+@app.route("/themes/<theme_id>/sprites/<sprite_id>/delete", methods=["POST"])
+def delete_sprite(theme_id: str, sprite_id: str):
+    """Delete a sprite from a theme."""
     sprite_service = get_sprite_service()
-    sprite_service.delete(sprite_id)
-    return redirect(url_for("list_sprites"))
+    sprite_service.delete(sprite_id, theme_id=theme_id)
+    return redirect(url_for("list_theme_sprites", theme_id=theme_id))
 
 
 @app.route("/api/sprites/<sprite_id>")
 def api_sprite(sprite_id: str):
-    """Get sprite data as JSON."""
+    """Get sprite data as JSON (from active theme)."""
     sprite_service = get_sprite_service()
     sprite = sprite_service.get_by_id(sprite_id)
     if sprite:

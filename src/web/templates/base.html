@@ -165,7 +165,7 @@
             <a href="{{ url_for('list_alarms') }}" class="{% if request.endpoint in ['list_alarms', 'new_alarm', 'edit_alarm'] %}active{% endif %}">Alarms</a>
             <a href="{{ url_for('music') }}" class="{% if request.endpoint in ['music', 'new_playlist', 'edit_playlist'] %}active{% endif %}">Music</a>
             <a href="{{ url_for('list_messages') }}" class="{% if request.endpoint in ['list_messages', 'new_message'] %}active{% endif %}">Messages</a>
-            <a href="{{ url_for('list_sprites') }}" class="{% if request.endpoint in ['list_sprites', 'new_sprite', 'edit_sprite'] %}active{% endif %}">Sprites</a>
+            <a href="{{ url_for('list_themes') }}" class="{% if request.endpoint in ['list_themes', 'new_theme', 'list_theme_sprites', 'new_sprite', 'edit_sprite', 'delete_sprite', 'activate_theme', 'rename_theme', 'duplicate_theme', 'delete_theme'] %}active{% endif %}">Sprites</a>
             <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}">Settings</a>
             {% if session.get('authenticated') %}
             <form action="{{ url_for('logout') }}" method="post" style="display: inline; margin-left: auto;">
