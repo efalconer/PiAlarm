@@ -97,10 +97,18 @@
         <li class="alarm-item">
             <div>
                 <span {% if current_file == sound %}style="color: #4fc3f7;"{% endif %}>{{ sound }}</span>
+                {% if sound in alarm_only_set %}
+                <span style="font-size: 11px; background: #3a2a00; color: #f0a500; padding: 2px 6px; border-radius: 4px; margin-left: 6px;">Alarm Only</span>
+                {% endif %}
             </div>
             <div class="alarm-actions">
                 <form action="{{ url_for('play_music', filename=sound) }}" method="post" style="display:inline;">
                     <button type="submit" class="btn btn-secondary">Play</button>
+                </form>
+                <form action="{{ url_for('toggle_alarm_only', filename=sound) }}" method="post" style="display:inline;">
+                    <button type="submit" class="btn {% if sound in alarm_only_set %}btn-secondary{% endif %}" title="{% if sound in alarm_only_set %}Remove alarm-only flag{% else %}Mark as alarm-only{% endif %}" style="font-size: 13px;">
+                        {% if sound in alarm_only_set %}Unmark Alarm Only{% else %}Alarm Only{% endif %}
+                    </button>
                 </form>
                 <form action="{{ url_for('delete_music', filename=sound) }}" method="post" style="display:inline;">
                     <button type="submit" class="btn btn-danger" onclick="return confirm('Delete {{ sound }}?')">Delete</button>

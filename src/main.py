@@ -214,7 +214,7 @@ class PiAlarm:
     def _on_music(self) -> None:
         """Handle music button press - start music player with all uploaded tracks."""
         logger.info("Music button pressed")
-        tracks = self.audio_service.get_available_sounds()
+        tracks = self.audio_service.get_available_sounds(exclude_alarm_only=True)
         if not tracks:
             logger.warning("No music files found in music directory")
             return
