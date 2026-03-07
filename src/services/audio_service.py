@@ -1,5 +1,6 @@
 """Audio service for PiAlarm - handles MP3 playback via I2S."""
 
+import json
 import logging
 import os
 import threading
@@ -27,6 +28,8 @@ class AudioService:
         self._paused = False
         self._duration_cache: dict[str, int | None] = {}
         self._track_started_at: float = 0
+        self._metadata: dict[str, dict] = {}
+        self._metadata_loaded = False
 
     def initialize(self) -> bool:
         """Initialize pygame mixer for audio playback."""
@@ -55,12 +58,60 @@ class AudioService:
                 self._initialized = False
                 logger.info("Audio service shutdown")
 
-    def get_available_sounds(self) -> list[str]:
-        """Get list of available audio files (MP3 and WAV)."""
+    def _metadata_path(self) -> Path:
+        return MUSIC_DIR / "metadata.json"
+
+    def _load_metadata(self) -> None:
+        """Load per-file metadata from disk (idempotent)."""
+        if self._metadata_loaded:
+            return
+        path = self._metadata_path()
+        if path.exists():
+            try:
+                self._metadata = json.loads(path.read_text())
+            except Exception:
+                self._metadata = {}
+        self._metadata_loaded = True
+
+    def _save_metadata(self) -> None:
+        """Persist per-file metadata to disk."""
+        MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+        self._metadata_path().write_text(json.dumps(self._metadata, indent=2))
+
+    def is_alarm_only(self, filename: str) -> bool:
+        """Return True if the file is flagged as alarm-only."""
+        self._load_metadata()
+        return bool(self._metadata.get(filename, {}).get("alarm_only", False))
+
+    def set_alarm_only(self, filename: str, value: bool) -> None:
+        """Set or clear the alarm-only flag for a file."""
+        with self._lock:
+            self._load_metadata()
+            if value:
+                self._metadata.setdefault(filename, {})["alarm_only"] = True
+            else:
+                entry = self._metadata.get(filename, {})
+                entry.pop("alarm_only", None)
+                if not entry:
+                    self._metadata.pop(filename, None)
+                else:
+                    self._metadata[filename] = entry
+            self._save_metadata()
+
+    def get_available_sounds(self, exclude_alarm_only: bool = False) -> list[str]:
+        """Get list of available audio files (MP3 and WAV).
+
+        Args:
+            exclude_alarm_only: When True, omit files flagged as alarm-only.
+        """
         if not MUSIC_DIR.exists():
             return []
         files = list(MUSIC_DIR.glob("*.mp3")) + list(MUSIC_DIR.glob("*.wav"))
-        return sorted([f.name for f in files])
+        names = sorted([f.name for f in files])
+        if exclude_alarm_only:
+            self._load_metadata()
+            names = [n for n in names if not self._metadata.get(n, {}).get("alarm_only", False)]
+        return names
 
     def play(self, filename: str, loop: bool = True) -> bool:
         """Play an MP3 file. Returns True if successful."""
@@ -292,6 +343,10 @@ class AudioService:
         try:
             os.remove(filepath)
             logger.info(f"Deleted: {filename}")
+            self._load_metadata()
+            if filename in self._metadata:
+                del self._metadata[filename]
+                self._save_metadata()
             return True
         except OSError as e:
             logger.error(f"Failed to delete {filename}: {e}")

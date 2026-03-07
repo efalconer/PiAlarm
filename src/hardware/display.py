@@ -247,6 +247,7 @@ class WaveshareOLED(Display):
         self._font_alarm = None
         self._font_alarm_small = None
         self._alarm_blink_state = False
+        self._message_blink_state = False
         self._showing_message = False
         self._message_text: str | None = None
         self._message_is_last = False
@@ -696,9 +697,13 @@ class WaveshareOLED(Display):
                     temp_x = icon_x + icon_size + 10
                     draw.text((temp_x, 38), data.weather_temp, font=self._font_small, fill="white")
 
-                # Envelope icon in lower-right corner when messages pending
+                # Envelope icon in lower-right corner when messages pending — blinks
                 if data.has_unread_messages:
-                    self._draw_envelope_icon(draw, 118, 56)
+                    self._message_blink_state = not self._message_blink_state
+                    if self._message_blink_state:
+                        self._draw_envelope_icon(draw, 118, 56)
+                else:
+                    self._message_blink_state = False
 
     def show_message(self, text: str, is_last: bool = False) -> None:
         """Display a message on screen (full screen with word-wrapped text)."""

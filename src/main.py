@@ -45,6 +45,9 @@ class PiAlarm:
         self._showing_message = False
         self._music_mode = False
         self._no_messages_until: float = 0
+        self._review_mode = False
+        self._review_messages: list = []
+        self._review_index = 0
 
     def _init_display(self):
         """Initialize the appropriate display based on config."""
@@ -141,6 +144,9 @@ class PiAlarm:
         self._forecast_page = 0
         self._showing_message = False
         self._no_messages_until = 0
+        self._review_mode = False
+        self._review_messages = []
+        self._review_index = 0
         self.display.clear_message()
 
     def _on_forecast(self) -> None:
@@ -197,24 +203,52 @@ class PiAlarm:
         if self._music_mode:
             logger.info("Messages button pressed — next track")
             self.audio_service.next_track()
-        else:
-            logger.info("Messages button pressed")
-            message = self.message_service.get_next_unread()
-            if message:
-                self.message_service.mark_as_read(message.id)
-                self.display.show_message(message.text)
-                self._showing_message = True
-                self._forecast_page = 0  # Messages take priority over forecast
+            return
+
+        logger.info("Messages button pressed")
+
+        # Cycle through recent messages when already in review mode
+        if self._review_mode and self._review_messages:
+            self._review_index = (self._review_index + 1) % len(self._review_messages)
+            msg = self._review_messages[self._review_index]
+            self.display.show_message(msg.text)
+            self._showing_message = True
+            return
+
+        message = self.message_service.get_next_unread()
+        if message:
+            self.message_service.mark_as_read(message.id)
+            self.display.show_message(message.text)
+            self._showing_message = True
+            self._forecast_page = 0
+            return
+
+        # No unread messages — if the "no new messages" prompt is still showing,
+        # the second press enters review mode for messages from the last 2 days.
+        if self._no_messages_until:
+            self._no_messages_until = 0
+            recent = self.message_service.get_recent_messages(days=2)
+            if recent:
+                self._review_mode = True
+                self._review_messages = recent
+                self._review_index = 0
+                self.display.show_message(recent[0].text)
+                logger.info(f"Entering review mode with {len(recent)} recent message(s)")
             else:
-                # No unread messages - show notification briefly then revert
-                self.display.show_message("No new messages")
-                self._showing_message = True
-                self._no_messages_until = time.time() + 5
+                self.display.show_message("No recent messages")
+                self._no_messages_until = time.time() + 3
+            self._showing_message = True
+            return
+
+        # First press with no unread — prompt the user to press again
+        self.display.show_message("No new messages. Press again to review recent.")
+        self._showing_message = True
+        self._no_messages_until = time.time() + 5
 
     def _on_music(self) -> None:
         """Handle music button press - start music player with all uploaded tracks."""
         logger.info("Music button pressed")
-        tracks = self.audio_service.get_available_sounds()
+        tracks = self.audio_service.get_available_sounds(exclude_alarm_only=True)
         if not tracks:
             logger.warning("No music files found in music directory")
             return
@@ -239,6 +273,9 @@ class PiAlarm:
             self._forecast_page = 0
             self._showing_message = False
             self._music_mode = False
+            self._review_mode = False
+            self._review_messages = []
+            self._review_index = 0
         elif self.audio_service.is_playlist_mode and not self._music_mode:
             # Playlist started from web or other source — enter music mode
             self._music_mode = True

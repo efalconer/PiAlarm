@@ -184,9 +184,12 @@ def music():
     """Music library and playlists."""
     audio_service = get_audio_service()
     playlist_service = get_playlist_service()
+    sounds = audio_service.get_available_sounds()
+    alarm_only_set = {s for s in sounds if audio_service.is_alarm_only(s)}
     return render_template(
         "music.html",
-        sounds=audio_service.get_available_sounds(),
+        sounds=sounds,
+        alarm_only_set=alarm_only_set,
         playlists=playlist_service.get_all(),
         has_active_playback=audio_service.has_active_playback(),
         is_playing=audio_service.is_playing(),
@@ -241,12 +244,24 @@ def delete_music(filename: str):
 
 @app.route("/music/<filename>/play", methods=["POST"])
 def play_music(filename: str):
-    """Play all tracks as a playlist starting from the selected file."""
+    """Play tracks as a playlist starting from the selected file (alarm-only files excluded)."""
     audio_service = get_audio_service()
-    sounds = audio_service.get_available_sounds()
-    start_index = sounds.index(filename) if filename in sounds else 0
-    audio_service.play_playlist(sounds, start_index=start_index)
+    sounds = audio_service.get_available_sounds(exclude_alarm_only=True)
+    if filename not in sounds:
+        # File is alarm-only or not found — play it individually
+        audio_service.play(filename, loop=False)
+    else:
+        start_index = sounds.index(filename)
+        audio_service.play_playlist(sounds, start_index=start_index)
     return redirect(url_for("now_playing"))
+
+
+@app.route("/music/<filename>/toggle-alarm-only", methods=["POST"])
+def toggle_alarm_only(filename: str):
+    """Toggle the alarm-only flag for a music file."""
+    audio_service = get_audio_service()
+    audio_service.set_alarm_only(filename, not audio_service.is_alarm_only(filename))
+    return redirect(url_for("music"))
 
 
 @app.route("/music/stop", methods=["POST"])

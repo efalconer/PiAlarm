@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -88,6 +88,15 @@ class MessageService:
             return None
         # Return oldest unread message
         return sorted(unread, key=lambda m: m.created_at)[0]
+
+    def get_recent_messages(self, days: int = 2) -> list[Message]:
+        """Get all messages created within the last N days, oldest first."""
+        cutoff = self.time_service.now().replace(tzinfo=None) - timedelta(days=days)
+        recent = [
+            m for m in self._messages
+            if datetime.fromisoformat(m.created_at).replace(tzinfo=None) >= cutoff
+        ]
+        return sorted(recent, key=lambda m: m.created_at)
 
     def create_message(self, text: str) -> Message:
         """Create a new message."""
