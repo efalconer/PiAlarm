@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Themes - PiAlarm{% endblock %}
+{% block content %}
+<h1>Sprite Themes</h1>
+
+<div style="margin-bottom: 20px;">
+    <form method="POST" action="{{ url_for('new_theme') }}" style="display: flex; gap: 10px; align-items: center;">
+        <input type="text" name="name" placeholder="New theme name" required style="margin: 0; flex: 1;">
+        <button type="submit" class="btn">Create Theme</button>
+    </form>
+</div>
+
+{% if theme_info %}
+<ul class="alarm-list">
+    {% for info in theme_info %}
+    {% set theme = info.theme %}
+    <li class="alarm-item" style="flex-direction: column; align-items: stretch; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                {% if info.is_active %}
+                <span style="background: #4fc3f7; color: #1a1a2e; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">ACTIVE</span>
+                {% endif %}
+                <div>
+                    <div class="alarm-time" style="font-size: 18px;">{{ theme.name }}</div>
+                    <div class="alarm-days">{{ info.sprite_count }} sprite{{ 's' if info.sprite_count != 1 else '' }}</div>
+                </div>
+            </div>
+            <div class="alarm-actions" style="flex-wrap: wrap; gap: 8px;">
+                <a href="{{ url_for('list_theme_sprites', theme_id=theme.id) }}" class="btn btn-secondary">Edit Sprites</a>
+                {% if not info.is_active %}
+                <form method="POST" action="{{ url_for('activate_theme', theme_id=theme.id) }}" style="margin: 0;">
+                    <button type="submit" class="btn btn-success">Activate</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Rename form -->
+        <div style="display: flex; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid #333;">
+            <form method="POST" action="{{ url_for('rename_theme', theme_id=theme.id) }}" style="display: flex; gap: 8px; flex: 1; margin: 0;">
+                <input type="text" name="name" value="{{ theme.name }}" placeholder="Rename theme" style="margin: 0; flex: 1; padding: 6px 10px; font-size: 13px;">
+                <button type="submit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Rename</button>
+            </form>
+            <form method="POST" action="{{ url_for('duplicate_theme', theme_id=theme.id) }}" style="display: flex; gap: 8px; margin: 0;">
+                <input type="text" name="name" value="{{ theme.name }} Copy" placeholder="Duplicate name" style="margin: 0; padding: 6px 10px; font-size: 13px; width: 150px;">
+                <button type="submit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Duplicate</button>
+            </form>
+            {% if theme_info | length > 1 %}
+            <form method="POST" action="{{ url_for('delete_theme', theme_id=theme.id) }}" style="margin: 0;">
+                <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 13px;"
+                    onclick="return confirm('Delete theme \'{{ theme.name }}\'? This will remove all its sprites.')">
+                    Delete
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="card">
+    <p>No themes found. Create one to get started.</p>
+</div>
+{% endif %}
+{% endblock %}
